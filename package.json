@@ -6,22 +6,44 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "init-db": "ts-node scripts/init-db.ts",
+    "clean-products": "ts-node scripts/clean-products.ts",
+    "setup-supabase": "chmod +x ./scripts/setup-supabase.sh && ./scripts/setup-supabase.sh",
+    "apply-supabase": "ts-node scripts/apply-supabase-changes.ts"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.5",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.48.1",
+    "@types/uuid": "^10.0.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "lucide-react": "^0.474.0",
+    "mongodb": "^6.13.0",
+    "next": "15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next": "15.1.6"
+    "react-dropzone": "^14.3.5",
+    "react-input-mask": "^2.0.4",
+    "react-number-format": "^5.4.3",
+    "tailwind-merge": "^3.0.1",
+    "use-sound": "^4.0.3",
+    "uuid": "^11.0.5",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
-    "@eslint/eslintrc": "^3"
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
   }
 }

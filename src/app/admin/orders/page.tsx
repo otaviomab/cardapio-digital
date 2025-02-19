@@ -20,49 +20,26 @@ import { Order } from '@/types/order'
 
 // Tipos de status possíveis
 const orderStatuses = {
-  pendente: {
-    label: 'Pendente',
-    icon: Clock,
-    color: 'text-yellow-500 bg-yellow-50'
-  },
-  confirmado: {
-    label: 'Confirmado',
-    icon: CheckCircle2,
-    color: 'text-blue-500 bg-blue-50'
-  },
-  preparando: {
-    label: 'Em Preparo',
-    icon: ChefHat,
-    color: 'text-orange-500 bg-orange-50'
-  },
-  pronto: {
-    label: 'Pronto',
-    icon: Package,
-    color: 'text-green-500 bg-green-50'
-  },
-  saiu_para_entrega: {
-    label: 'Saiu para Entrega',
-    icon: Truck,
-    color: 'text-purple-500 bg-purple-50'
-  },
-  entregue: {
-    label: 'Entregue',
-    icon: CheckCircle2,
-    color: 'text-green-500 bg-green-50'
-  },
-  cancelado: {
-    label: 'Cancelado',
-    icon: Ban,
-    color: 'text-red-500 bg-red-50'
-  },
-  rejeitado: {
-    label: 'Rejeitado',
-    icon: Ban,
-    color: 'text-red-500 bg-red-50'
-  }
+  pending: { label: 'Aguardando', color: 'text-yellow-500', icon: Clock },
+  confirmed: { label: 'Confirmado', color: 'text-blue-500', icon: CheckCircle2 },
+  preparing: { label: 'Preparando', color: 'text-orange-500', icon: ChefHat },
+  ready: { label: 'Pronto', color: 'text-purple-500', icon: Package },
+  out_for_delivery: { label: 'Saiu para Entrega', color: 'text-blue-500', icon: Truck },
+  delivered: { label: 'Entregue', color: 'text-green-500', icon: CheckCircle2 },
+  completed: { label: 'Retirado', color: 'text-green-500', icon: CheckCircle2 },
+  cancelled: { label: 'Cancelado', color: 'text-red-500', icon: Ban },
+  rejected: { label: 'Rejeitado', color: 'text-red-500', icon: Ban }
 } as const
 
 type OrderStatus = keyof typeof orderStatuses
+
+// Adiciona o mapeamento de métodos de pagamento
+const paymentMethods = {
+  credit_card: 'Cartão de Crédito',
+  debit_card: 'Cartão de Débito',
+  pix: 'PIX',
+  cash: 'Dinheiro'
+} as const
 
 export default function OrdersPage() {
   const { supabase } = useSupabase()
@@ -252,6 +229,9 @@ export default function OrdersPage() {
                   Tipo
                 </th>
                 <th className="whitespace-nowrap px-6 py-3 text-sm font-medium text-gray-900">
+                  Pagamento
+                </th>
+                <th className="whitespace-nowrap px-6 py-3 text-sm font-medium text-gray-900">
                   Total
                 </th>
                 <th className="whitespace-nowrap px-6 py-3 text-sm font-medium text-gray-900">
@@ -267,14 +247,15 @@ export default function OrdersPage() {
                 // Mapeia os status antigos para os novos
                 let statusKey = order.status
                 switch (order.status) {
-                  case 'pending': statusKey = 'pendente'; break;
-                  case 'confirmed': statusKey = 'confirmado'; break;
-                  case 'preparing': statusKey = 'preparando'; break;
-                  case 'ready': statusKey = 'pronto'; break;
-                  case 'out_for_delivery': statusKey = 'saiu_para_entrega'; break;
-                  case 'delivered': statusKey = 'entregue'; break;
-                  case 'cancelled': statusKey = 'cancelado'; break;
-                  case 'rejected': statusKey = 'rejeitado'; break;
+                  case 'pending': statusKey = 'pending'; break;
+                  case 'confirmed': statusKey = 'confirmed'; break;
+                  case 'preparing': statusKey = 'preparing'; break;
+                  case 'ready': statusKey = 'ready'; break;
+                  case 'out_for_delivery': statusKey = 'out_for_delivery'; break;
+                  case 'delivered': statusKey = 'delivered'; break;
+                  case 'completed': statusKey = 'completed'; break;
+                  case 'cancelled': statusKey = 'cancelled'; break;
+                  case 'rejected': statusKey = 'rejected'; break;
                 }
 
                 const status = orderStatuses[statusKey as OrderStatus] || {
@@ -305,6 +286,15 @@ export default function OrdersPage() {
                     <td className="whitespace-nowrap px-6 py-4">
                       <span className="text-sm text-gray-900">
                         {order.orderType === 'delivery' ? 'Entrega' : 'Retirada'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <span className="text-sm text-gray-900">
+                        {order.payment.method === 'credit_card' ? 'Cartão de Crédito' : 
+                         order.payment.method === 'debit_card' ? 'Cartão de Débito' :
+                         order.payment.method === 'pix' ? 'PIX' :
+                         order.payment.method === 'cash' ? 'Dinheiro' :
+                         'Não definido'}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">

@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/contexts/SupabaseContext'
+import { Button } from '@/components/ui/button'
+import { AlertDialog } from '@/components/alert-dialog'
+import { Mail, Lock, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -11,6 +15,8 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmailSent, setResetEmailSent] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,64 +52,160 @@ export default function AdminLogin() {
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Login Administrativo
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          {error && (
-            <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
-              {error}
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
-                placeholder="Email"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Senha
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
-                placeholder="Senha"
-              />
-            </div>
-          </div>
+  const handleForgotPassword = async () => {
+    setLoading(true)
+    setError(null)
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Entrando...' : 'Entrar'}
-            </button>
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/admin/reset-password`,
+      })
+
+      if (error) throw error
+
+      setResetEmailSent(true)
+    } catch (err: any) {
+      console.error('Erro ao enviar email de recuperação:', err)
+      setError('Erro ao enviar email de recuperação. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-4">
+      <div className="w-full max-w-md space-y-8">
+        {/* Logo e Cabeçalho */}
+        <div className="text-center">
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="/images/logotipo.png"
+              alt="Logo"
+              width={180}
+              height={48}
+              className="h-12 w-auto"
+            />
           </div>
-        </form>
+          <h2 className="text-3xl font-bold tracking-tight text-zinc-900">
+            Bem-vindo(a) de volta
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            Faça login para acessar o painel administrativo
+          </p>
+        </div>
+
+        {/* Formulário */}
+        <div className="mt-8">
+          <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-900/5">
+            <form className="space-y-6" onSubmit={handleLogin}>
+              {error && (
+                <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* Campo de Email */}
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+                    Email
+                  </label>
+                  <div className="relative mt-1">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Mail className="h-5 w-5 text-zinc-400" />
+                    </div>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="block w-full rounded-lg border border-zinc-200 pl-10 py-3 text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+                </div>
+
+                {/* Campo de Senha */}
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
+                    Senha
+                  </label>
+                  <div className="relative mt-1">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-5 w-5 text-zinc-400" />
+                    </div>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="block w-full rounded-lg border border-zinc-200 pl-10 py-3 text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="space-y-4">
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="relative w-full justify-center py-6"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Entrando...
+                    </>
+                  ) : (
+                    'Entrar'
+                  )}
+                </Button>
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-zinc-600 hover:text-zinc-900"
+                    onClick={() => setShowForgotPassword(true)}
+                  >
+                    Esqueci minha senha
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-zinc-600 hover:text-zinc-900"
+                    onClick={() => router.push('/admin/signup')}
+                  >
+                    Criar conta
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
       </div>
+
+      {/* Dialog de Esqueci Minha Senha */}
+      <AlertDialog
+        open={showForgotPassword}
+        onOpenChange={setShowForgotPassword}
+        title="Recuperar Senha"
+        description={
+          resetEmailSent
+            ? "Email de recuperação enviado! Verifique sua caixa de entrada."
+            : "Digite seu email para receber as instruções de recuperação de senha."
+        }
+        confirmText={resetEmailSent ? "OK" : "Enviar"}
+        onConfirm={resetEmailSent ? undefined : handleForgotPassword}
+        variant="default"
+      />
     </div>
   )
 } 

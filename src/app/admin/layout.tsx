@@ -8,7 +8,10 @@ import {
   UtensilsCrossed, 
   Settings, 
   ChartBar,
-  LogOut
+  LogOut,
+  Home,
+  ShoppingBag,
+  Printer
 } from 'lucide-react'
 import { useSupabase } from '@/contexts/SupabaseContext'
 import { useRouter } from 'next/navigation'
@@ -19,12 +22,12 @@ import { OrderNotification } from '@/components/order-notification'
 const menuItems = [
   {
     title: 'Dashboard',
-    icon: LayoutDashboard,
-    href: '/admin/dashboard'
+    icon: Home,
+    href: '/admin'
   },
   {
     title: 'Pedidos',
-    icon: ClipboardList,
+    icon: ShoppingBag,
     href: '/admin/orders'
   },
   {
@@ -38,9 +41,19 @@ const menuItems = [
     href: '/admin/settings'
   },
   {
+    title: 'Impressora',
+    icon: Printer,
+    href: '/admin/settings/printer'
+  },
+  {
     title: 'Relatórios',
     icon: ChartBar,
     href: '/admin/reports'
+  },
+  {
+    title: 'Sair',
+    icon: LogOut,
+    href: '/admin/logout'
   }
 ]
 
@@ -100,8 +113,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return null
   }
 
-  // Se estiver na página de login, não mostra o layout administrativo
-  if (pathname === '/admin/login') {
+  // Se estiver na página de login ou signup, não mostra o layout administrativo
+  if (pathname === '/admin/login' || pathname === '/admin/signup') {
     return <>{children}</>
   }
 

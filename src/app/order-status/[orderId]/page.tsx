@@ -13,6 +13,9 @@ import {
   Truck,
   MapPin,
   AlertCircle,
+  User,
+  Phone,
+  Store,
 } from 'lucide-react'
 
 interface OrderStatusPageProps {
@@ -60,12 +63,21 @@ const statusColors = {
 export default function OrderStatusPage({ params }: OrderStatusPageProps) {
   const [order, setOrder] = useState<Order | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const { orderId } = use(params)
 
   useEffect(() => {
     const fetchOrder = async () => {
+      if (!orderId || orderId === 'undefined') {
+        setError('ID do pedido inválido')
+        setIsLoading(false)
+        return
+      }
+
       try {
+        setIsLoading(true)
         console.log('Buscando pedido:', orderId)
+        
         const response = await fetch(`/api/mongodb?action=getOrder&id=${orderId}`, {
           method: 'GET',
           headers: {
@@ -74,12 +86,13 @@ export default function OrderStatusPage({ params }: OrderStatusPageProps) {
         })
         
         if (!response.ok) {
-          const errorData = await response.json()
-          console.error('Erro na resposta:', errorData)
-          throw new Error(errorData.error || 'Erro ao carregar pedido')
+          const data = await response.json()
+          console.error('Erro na resposta:', data)
+          throw new Error(data.error || 'Erro ao carregar pedido')
         }
 
         const data = await response.json()
+
         if (!data) {
           console.error('Pedido não encontrado')
           throw new Error('Pedido não encontrado')
@@ -87,21 +100,31 @@ export default function OrderStatusPage({ params }: OrderStatusPageProps) {
 
         console.log('Pedido carregado:', data)
         setOrder(data)
+        setError(null)
       } catch (err) {
         console.error('Erro ao carregar pedido:', err)
+        setOrder(null)
         setError(err instanceof Error ? err.message : 'Erro ao carregar pedido')
+      } finally {
+        setIsLoading(false)
       }
     }
 
-    if (orderId) {
-      fetchOrder()
+    fetchOrder()
 
-      // Configura polling para atualizar o status do pedido
-      const interval = setInterval(fetchOrder, 10000) // Atualiza a cada 10 segundos
+    // Configura polling para atualizar o status do pedido
+    const interval = setInterval(fetchOrder, 10000) // Atualiza a cada 10 segundos
 
-      return () => clearInterval(interval)
-    }
+    return () => clearInterval(interval)
   }, [orderId])
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-green-600" />
+      </div>
+    )
+  }
 
   if (error) {
     return (
@@ -110,7 +133,7 @@ export default function OrderStatusPage({ params }: OrderStatusPageProps) {
           <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
           <h1 className="mt-4 text-lg font-medium text-zinc-900">{error}</h1>
           <p className="mt-2 text-sm text-zinc-600">
-            Não foi possível carregar as informações do pedido.
+            Não foi possível carregar as informações do pedido. Por favor, verifique se o link está correto.
           </p>
         </div>
       </div>
@@ -120,7 +143,13 @@ export default function OrderStatusPage({ params }: OrderStatusPageProps) {
   if (!order) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-green-600" />
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-yellow-500" />
+          <h1 className="mt-4 text-lg font-medium text-zinc-900">Pedido não encontrado</h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            Não foi possível encontrar o pedido solicitado. Por favor, verifique se o número do pedido está correto.
+          </p>
+        </div>
       </div>
     )
   }
@@ -158,6 +187,47 @@ export default function OrderStatusPage({ params }: OrderStatusPageProps) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Dados do Cliente */}
+        <div className="mt-8 rounded-lg bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-medium text-zinc-900">Dados do Cliente</h2>
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <User className="h-5 w-5 text-zinc-400" />
+              <span className="text-sm text-zinc-900">{order.customer.name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-zinc-400" />
+              <span className="text-sm text-zinc-900">{order.customer.phone}</span>
+            </div>
+            {order.orderType === 'delivery' && order.address && (
+              <div className="flex items-start gap-2">
+                <MapPin className="h-5 w-5 text-zinc-400" />
+                <div className="flex flex-col">
+                  <span className="text-sm text-zinc-900">
+                    {order.address.street}, {order.address.number}
+                    {order.address.complement && ` - ${order.address.complement}`}
+                  </span>
+                  <span className="text-sm text-zinc-600">
+                    {order.address.neighborhood}
+                  </span>
+                  <span className="text-sm text-zinc-600">
+                    {order.address.city}/{order.address.state}
+                  </span>
+                  <span className="text-sm text-zinc-600">
+                    CEP: {order.address.cep}
+                  </span>
+                </div>
+              </div>
+            )}
+            {order.orderType === 'pickup' && (
+              <div className="flex items-center gap-2">
+                <Store className="h-5 w-5 text-zinc-400" />
+                <span className="text-sm text-zinc-900">Retirada no local</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Timeline de Status */}

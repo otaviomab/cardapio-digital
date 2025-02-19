@@ -8,19 +8,27 @@ import {
   Truck,
   CreditCard,
   Save,
-  Loader2
+  Loader2,
+  Plus,
+  AlertTriangle
 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import { useSupabase } from '@/contexts/SupabaseContext'
 import { PatternFormat } from 'react-number-format'
 import { DeliveryZones } from './components/delivery-zones'
 import { getAddressCoordinates } from '@/lib/delivery'
 import { DeliveryZone } from '@/types/delivery'
 import { ImageUpload } from '@/components/image-upload'
-
-interface OpeningHour {
-  days: string
-  hours: string
-}
+import { fetchAddressByCep } from '@/lib/address'
+import { 
+  validateHourFormat, 
+  validateHourSequence, 
+  checkConflicts, 
+  normalizeHours,
+  translateWeekDay,
+  type WeekDay,
+  type OpeningHour
+} from '@/lib/hours-validation'
 
 interface RestaurantSettings {
   name: string
@@ -53,6 +61,17 @@ interface RestaurantSettings {
   }
 }
 
+// Adicionar constante com os dias válidos
+const VALID_WEEK_DAYS: WeekDay[] = [
+  'domingo',
+  'segunda',
+  'terca',
+  'quarta',
+  'quinta',
+  'sexta',
+  'sabado'
+]
+
 export default function SettingsPage() {
   const { supabase } = useSupabase()
   const [isLoading, setIsLoading] = useState(false)
@@ -69,14 +88,17 @@ export default function SettingsPage() {
       neighborhood: '',
       city: '',
       state: '',
-      zipCode: ''
+      zipCode: '',
+      coordinates: undefined
     },
     contact: {
       phone: '',
       whatsapp: '',
       email: ''
     },
-    openingHours: [],
+    openingHours: [
+      { days: [], start: '', end: '', enabled: true }
+    ],
     deliveryInfo: {
       minimumOrder: 0,
       deliveryTime: '',
@@ -105,7 +127,6 @@ export default function SettingsPage() {
 
         if (error) {
           if (error.code === 'PGRST116') {
-            // Nenhuma configuração encontrada - não é um erro
             console.log('Nenhuma configuração encontrada para o usuário')
             return
           }
@@ -113,25 +134,38 @@ export default function SettingsPage() {
         }
 
         if (data) {
+          // Validar e converter os dias da semana ao carregar
+          const validatedOpeningHours = data.opening_hours?.map((hour: any) => ({
+            days: Array.isArray(hour.days) 
+              ? hour.days.filter((day: unknown) => VALID_WEEK_DAYS.includes(day as WeekDay)) as WeekDay[]
+              : [],
+            start: hour.start || '',
+            end: hour.end || '',
+            enabled: hour.enabled ?? true
+          })) || []
+
           setSettings({
             name: data.name || '',
             description: data.description || '',
             logo: data.logo_url || '',
             coverImage: data.cover_url || '',
-            address: data.address || {
-              street: '',
-              number: '',
-              neighborhood: '',
-              city: '',
-              state: '',
-              zipCode: ''
+            address: {
+              street: data.address?.street || '',
+              number: data.address?.number || '',
+              neighborhood: data.address?.neighborhood || '',
+              city: data.address?.city || '',
+              state: data.address?.state || '',
+              zipCode: data.address?.zipCode || '',
+              coordinates: data.address?.coordinates
             },
-            contact: data.contact || {
-              phone: '',
-              whatsapp: '',
-              email: ''
+            contact: {
+              phone: data.contact?.phone || '',
+              whatsapp: data.contact?.whatsapp || '',
+              email: data.contact?.email || ''
             },
-            openingHours: data.opening_hours || [],
+            openingHours: validatedOpeningHours.length > 0 
+              ? validatedOpeningHours
+              : [{ days: [], start: '', end: '', enabled: true }],
             deliveryInfo: {
               minimumOrder: data.delivery_info?.minimumOrder || 0,
               deliveryTime: data.delivery_info?.deliveryTime || '',
@@ -157,6 +191,37 @@ export default function SettingsPage() {
       // Validações básicas
       if (!settings.name?.trim()) {
         throw new Error('O nome do restaurante é obrigatório')
+      }
+
+      // Validar horários
+      const normalizedHours = normalizeHours(settings.openingHours)
+      
+      // Verificar se há horários inválidos
+      const invalidHours = settings.openingHours.filter((hour: OpeningHour) => 
+        hour.enabled && (!validateHourFormat(hour.start) || !validateHourFormat(hour.end))
+      )
+      
+      if (invalidHours.length > 0) {
+        throw new Error('Existem horários em formato inválido. Use o formato HH:mm')
+      }
+
+      // Verificar sequência de horários
+      const invalidSequences = settings.openingHours.filter((hour: OpeningHour) => 
+        hour.enabled && !validateHourSequence(hour.start, hour.end)
+      )
+
+      if (invalidSequences.length > 0) {
+        throw new Error('O horário final deve ser maior que o horário inicial')
+      }
+
+      // Verificar conflitos
+      const { hasConflicts, conflicts } = checkConflicts(settings.openingHours)
+      if (hasConflicts) {
+        const conflictMessages = conflicts.map(conflict => {
+          const days = conflict.days.map(translateWeekDay).join(', ')
+          return `Conflito nos dias: ${days}`
+        })
+        throw new Error(`Existem horários sobrepostos:\n${conflictMessages.join('\n')}`)
       }
 
       // Se não tiver coordenadas do restaurante E o endereço foi alterado, tenta obtê-las
@@ -246,7 +311,14 @@ export default function SettingsPage() {
           whatsapp: settings.contact.whatsapp?.replace(/\D/g, '') || '',
           email: settings.contact.email?.trim().toLowerCase() || ''
         },
-        opening_hours: settings.openingHours.filter(hour => hour.days && hour.hours),
+        opening_hours: normalizedHours
+          .filter(hour => hour.enabled && hour.days.length > 0)
+          .map(hour => ({
+            days: hour.days.filter(day => VALID_WEEK_DAYS.includes(day)) as WeekDay[],
+            start: hour.start.trim(),
+            end: hour.end.trim(),
+            enabled: hour.enabled
+          })),
         delivery_info: {
           minimumOrder: Number(settings.deliveryInfo.minimumOrder) || 0,
           deliveryTime: settings.deliveryInfo.deliveryTime?.trim() || '',
@@ -369,11 +441,12 @@ export default function SettingsPage() {
                 </label>
                 <PatternFormat
                   format="(##) ####-####"
-                  value={settings.contact.phone}
+                  value={settings.contact?.phone || ''}
                   onValueChange={(values) => {
+                    const value = values.value || ''
                     setSettings(prev => ({
                       ...prev,
-                      contact: { ...prev.contact, phone: values.value }
+                      contact: { ...prev.contact, phone: value }
                     }))
                   }}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
@@ -386,11 +459,12 @@ export default function SettingsPage() {
                 </label>
                 <PatternFormat
                   format="(##) #####-####"
-                  value={settings.contact.whatsapp}
+                  value={settings.contact?.whatsapp || ''}
                   onValueChange={(values) => {
+                    const value = values.value || ''
                     setSettings(prev => ({
                       ...prev,
-                      contact: { ...prev.contact, whatsapp: values.value }
+                      contact: { ...prev.contact, whatsapp: value }
                     }))
                   }}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
@@ -462,17 +536,49 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700">
                 CEP
               </label>
-              <PatternFormat
-                format="#####-###"
-                value={settings.address.zipCode}
-                onValueChange={(values) => {
-                  setSettings(prev => ({
-                    ...prev,
-                    address: { ...prev.address, zipCode: values.value }
-                  }))
-                }}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
-              />
+              <div className="relative mt-1">
+                <PatternFormat
+                  format="#####-###"
+                  value={settings.address?.zipCode || ''}
+                  onValueChange={async (values) => {
+                    const newCep = values.value || ''
+                    setSettings(prev => ({
+                      ...prev,
+                      address: { ...prev.address, zipCode: newCep }
+                    }))
+
+                    if (newCep.replace(/\D/g, '').length === 8) {
+                      try {
+                        const addressData = await fetchAddressByCep(newCep)
+                        setSettings(prev => ({
+                          ...prev,
+                          address: {
+                            ...prev.address,
+                            street: addressData.street || '',
+                            neighborhood: addressData.neighborhood || '',
+                            city: addressData.city || '',
+                            state: addressData.state || '',
+                            zipCode: addressData.zipCode || ''
+                          }
+                        }))
+                      } catch (error) {
+                        alert(error instanceof Error ? error.message : 'Erro ao buscar CEP')
+                        setSettings(prev => ({
+                          ...prev,
+                          address: {
+                            ...prev.address,
+                            street: '',
+                            neighborhood: '',
+                            city: '',
+                            state: ''
+                          }
+                        }))
+                      }
+                    }
+                  }}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
+                />
+              </div>
             </div>
 
             <div className="sm:col-span-2">
@@ -555,53 +661,166 @@ export default function SettingsPage() {
 
         {/* Horários */}
         {activeTab === 'hours' && (
-          <div className="space-y-4">
-            {settings.openingHours.map((hour, index) => (
-              <div key={index} className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Dias
-                  </label>
-                  <input
-                    type="text"
-                    value={hour.days}
-                    onChange={e => {
-                      const newHours = [...settings.openingHours]
-                      newHours[index].days = e.target.value
-                      setSettings(prev => ({ ...prev, openingHours: newHours }))
-                    }}
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
-                  />
-                </div>
+          <div className="space-y-6">
+            <div className="rounded-lg border border-gray-200 bg-white p-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Horários de Funcionamento
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Configure os horários de funcionamento do seu estabelecimento
+                </p>
+              </div>
 
+              <div className="space-y-4">
+                {settings.openingHours.map((hour, index) => (
+                  <div key={index} className="rounded-lg border border-gray-200 p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={hour.enabled}
+                          onCheckedChange={(checked) => {
+                            const newHours = [...settings.openingHours]
+                            newHours[index].enabled = checked
+                            setSettings(prev => ({ ...prev, openingHours: newHours }))
+                          }}
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                          {hour.enabled ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      
+                      {settings.openingHours.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newHours = settings.openingHours.filter((_, i) => i !== index)
+                            setSettings(prev => ({ ...prev, openingHours: newHours }))
+                          }}
+                          className="text-sm font-medium text-red-600 hover:text-red-700"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Dias da Semana
+                        </label>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {VALID_WEEK_DAYS.map((dayValue) => {
+                            const dayLabel = {
+                              domingo: 'Dom',
+                              segunda: 'Seg',
+                              terca: 'Ter',
+                              quarta: 'Qua',
+                              quinta: 'Qui',
+                              sexta: 'Sex',
+                              sabado: 'Sáb'
+                            }[dayValue]
+
+                            return (
+                              <button
+                                key={dayValue}
+                                type="button"
+                                onClick={() => {
+                                  const newHours = [...settings.openingHours]
+                                  const currentDays = newHours[index].days as WeekDay[]
+                                  
+                                  if (currentDays.includes(dayValue)) {
+                                    // Remove o dia
+                                    newHours[index].days = currentDays.filter(d => d !== dayValue)
+                                  } else {
+                                    // Adiciona o dia
+                                    newHours[index].days = [...currentDays, dayValue]
+                                  }
+                                  
+                                  setSettings(prev => ({ ...prev, openingHours: newHours }))
+                                }}
+                                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                                  hour.days.includes(dayValue)
+                                    ? 'bg-green-50 text-green-700 border-2 border-green-600'
+                                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                                }`}
+                              >
+                                {dayLabel}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">
+                            Horário Inicial
+                          </label>
+                          <input
+                            type="time"
+                            value={hour.start}
+                            onChange={(e) => {
+                              const newHours = [...settings.openingHours]
+                              newHours[index].start = e.target.value
+                              setSettings(prev => ({ ...prev, openingHours: newHours }))
+                            }}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">
+                            Horário Final
+                          </label>
+                          <input
+                            type="time"
+                            value={hour.end}
+                            onChange={(e) => {
+                              const newHours = [...settings.openingHours]
+                              newHours[index].end = e.target.value
+                              setSettings(prev => ({ ...prev, openingHours: newHours }))
+                            }}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setSettings(prev => ({
+                    ...prev,
+                    openingHours: [
+                      ...prev.openingHours,
+                      { days: [], start: '', end: '', enabled: true }
+                    ]
+                  }))}
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar Horário
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-700" />
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Horário
-                  </label>
-                  <input
-                    type="text"
-                    value={hour.hours}
-                    onChange={e => {
-                      const newHours = [...settings.openingHours]
-                      newHours[index].hours = e.target.value
-                      setSettings(prev => ({ ...prev, openingHours: newHours }))
-                    }}
-                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
-                  />
+                  <h4 className="text-sm font-medium text-yellow-800">
+                    Dicas para configurar os horários
+                  </h4>
+                  <ul className="mt-2 text-sm text-yellow-700">
+                    <li>• Você pode criar diferentes horários para diferentes dias</li>
+                    <li>• Para horários após meia-noite, crie dois períodos (ex: 18:00-23:59 e 00:00-02:00)</li>
+                    <li>• Mantenha os horários atualizados para evitar pedidos fora do horário</li>
+                  </ul>
                 </div>
               </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => setSettings(prev => ({
-                ...prev,
-                openingHours: [...prev.openingHours, { days: '', hours: '' }]
-              }))}
-              className="text-sm font-medium text-green-600 hover:text-green-700"
-            >
-              Adicionar horário
-            </button>
+            </div>
           </div>
         )}
 

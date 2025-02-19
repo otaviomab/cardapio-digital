@@ -2,40 +2,43 @@
 
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
-import { Store } from 'lucide-react'
+import { Store, Clock } from 'lucide-react'
 import { Restaurant, Product, Category } from '@/types/restaurant'
 import { ProductModal } from '@/components/product-modal'
 import { CartButton } from '@/components/cart-button'
 import { AddToCartDialog } from '@/components/add-to-cart-dialog'
+import { AlertDialog } from '@/components/alert-dialog'
 import { useRestaurantHours } from '@/hooks/useRestaurantHours'
 import { getCategories, getProducts } from '@/lib/api-services'
 
 interface RestaurantContentProps {
   restaurant: Restaurant
+  initialCategories?: Category[]
+  initialProducts?: Product[]
 }
 
-export function RestaurantContent({ restaurant }: RestaurantContentProps) {
+export function RestaurantContent({ 
+  restaurant,
+  initialCategories = [],
+  initialProducts = []
+}: RestaurantContentProps) {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [showAlert, setShowAlert] = useState(false)
+  const [categories, setCategories] = useState<Category[]>(initialCategories)
+  const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [isLoadingData, setIsLoadingData] = useState(!initialCategories || !initialProducts)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([])
 
   // Validação de horário de funcionamento
-  console.log('Horários do restaurante:', restaurant.openingHours)
   const { isOpen, nextOpeningTime, currentSchedule, isLoading } = useRestaurantHours(restaurant.openingHours || [])
 
-  console.log('Estado do hook no componente:', {
-    isOpen,
-    nextOpeningTime,
-    currentSchedule,
-    isLoading
-  })
-
-  // Carrega os dados do cardápio
+  // Carrega os dados do cardápio se não foram fornecidos
   useEffect(() => {
     const loadData = async () => {
+      if (initialCategories && initialProducts) return
+
       try {
         setIsLoadingData(true)
         const [categoriesData, productsData] = await Promise.all([
@@ -43,13 +46,11 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
           getProducts(restaurant.id)
         ])
 
-        console.log('Dados carregados:', {
-          categories: categoriesData,
-          products: productsData
-        })
-
         setCategories(categoriesData)
         setProducts(productsData)
+
+        // Expande todas as categorias por padrão
+        setExpandedCategories(categoriesData.map(cat => cat.id))
       } catch (error) {
         console.error('Erro ao carregar dados:', error)
       } finally {
@@ -58,7 +59,7 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
     }
 
     loadData()
-  }, [restaurant.id])
+  }, [restaurant.id, initialCategories, initialProducts])
 
   // Scroll suave para a categoria quando clicada
   const scrollToCategory = (categoryId: string) => {
@@ -108,7 +109,7 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
   const handleAddToCart = () => {
     // Não permite adicionar ao carrinho se estiver fechado
     if (!isOpen) {
-      alert('O restaurante está fechado no momento. Volte no horário de funcionamento.')
+      setShowAlert(true)
       return
     }
 
@@ -120,8 +121,8 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
     <div className="min-h-screen">
       {/* Alerta de Horário de Funcionamento */}
       {!isLoading && !isOpen && (
-        <div className="fixed left-0 right-0 top-0 z-50 bg-red-50 p-4" key="closed-alert">
-          <div className="container mx-auto flex items-center justify-between px-4 text-red-700">
+        <div className="fixed left-0 right-0 top-0 z-50 bg-red-50 shadow-sm" key="closed-alert">
+          <div className="container mx-auto flex items-center justify-between p-4 text-red-700">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
               <div>
@@ -139,7 +140,7 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
       )}
 
       {/* Header do Restaurante */}
-      <header className={`relative h-64 ${!isLoading && !isOpen ? 'mt-[72px]' : ''}`}>
+      <header className={`relative h-64 ${!isLoading && !isOpen ? 'mt-[84px]' : ''}`}>
         {/* Imagem de Capa */}
         <div className="absolute inset-0">
           <Image
@@ -173,32 +174,34 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
       {/* Conteúdo Principal */}
       <main className="container mx-auto px-4 py-8">
         {/* Categorias - Navegação Fixa */}
-        <nav className="sticky top-0 z-40 -mx-4 bg-white px-4 py-4 shadow-sm">
-          <div className="no-scrollbar overflow-x-auto">
-            <ul className="flex gap-4">
-              {categories.map((category) => {
-                // Garante que temos um ID válido e único
-                const categoryId = category._id?.toString() || category.id
-                if (!categoryId) return null // Pula categorias sem ID
+        <div className={`sticky ${!isLoading && !isOpen ? 'top-[84px]' : 'top-0'} z-40 -mx-4 bg-white shadow-sm`}>
+          <nav className="px-4 py-3">
+            <div className="no-scrollbar overflow-x-auto">
+              <ul className="flex gap-4">
+                {categories.map((category) => {
+                  // Garante que temos um ID válido e único
+                  const categoryId = category._id?.toString() || category.id
+                  if (!categoryId) return null // Pula categorias sem ID
 
-                return (
-                  <li key={`nav-category-${categoryId}`}>
-                    <button 
-                      onClick={() => scrollToCategory(categoryId)}
-                      className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors
-                        ${activeCategory === categoryId
-                          ? 'border-green-600 bg-green-50 text-green-600'
-                          : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50'
-                        }`}
-                    >
-                      {category.name}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        </nav>
+                  return (
+                    <li key={`nav-category-${categoryId}`}>
+                      <button 
+                        onClick={() => scrollToCategory(categoryId)}
+                        className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors
+                          ${activeCategory === categoryId
+                            ? 'border-green-600 bg-green-50 text-green-600'
+                            : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                          }`}
+                      >
+                        {category.name}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </nav>
+        </div>
 
         {/* Lista de Produtos por Categoria */}
         {isLoadingData ? (
@@ -244,7 +247,7 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
                           key={`product-${productId}`}
                           onClick={() => {
                             if (!isLoading && !isOpen) {
-                              alert('O restaurante está fechado no momento. Volte no horário de funcionamento.')
+                              setShowAlert(true)
                               return
                             }
                             setSelectedProduct(productId)
@@ -264,14 +267,14 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
                           )}
 
                           <div className="p-4">
-                            <h3 className="text-lg font-semibold text-zinc-900">
+                            <h3 className="font-medium text-gray-900">
                               {product.name}
                             </h3>
-                            <p className="mt-1 text-sm text-zinc-600">
+                            <p className="mt-1 text-sm text-gray-600">
                               {product.description}
                             </p>
                             <div className="mt-4">
-                              <span className="text-lg font-bold text-zinc-900">
+                              <span className="text-lg font-bold text-gray-900">
                                 {new Intl.NumberFormat('pt-BR', {
                                   style: 'currency',
                                   currency: 'BRL'
@@ -304,6 +307,16 @@ export function RestaurantContent({ restaurant }: RestaurantContentProps) {
           onAddToCart={handleAddToCart}
         />
       )}
+
+      {/* Alerta de Restaurante Fechado */}
+      <AlertDialog
+        open={showAlert}
+        onOpenChange={setShowAlert}
+        title="Restaurante Fechado"
+        description="O restaurante está fechado no momento. Volte no horário de funcionamento."
+        confirmText="OK"
+        variant="warning"
+      />
 
       {/* Botão do Carrinho */}
       <CartButton />

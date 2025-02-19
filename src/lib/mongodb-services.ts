@@ -9,28 +9,126 @@ export async function getCategories(restaurantId: string) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('categories')
   
-  return collection
+  console.log('Buscando categorias para restaurantId:', restaurantId)
+  
+  const categories = await collection
     .find({ restaurantId })
     .sort({ order: 1 })
     .toArray()
+
+  // Normaliza os IDs antes de retornar
+  const normalizedCategories = categories.map(category => ({
+    ...category,
+    id: category._id.toString(), // Garante que sempre temos um id em string
+  }))
+
+  console.log('Categorias encontradas:', normalizedCategories)
+  return normalizedCategories
 }
 
 export async function createCategory(category: Omit<Category, 'id'>) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('categories')
   
+  console.log('Criando categoria com dados:', category)
+  
+  // Garante que o restaurantId está presente
+  if (!category.restaurantId) {
+    throw new Error('restaurantId é obrigatório para criar uma categoria')
+  }
+
   const result = await collection.insertOne(category)
-  return { ...category, id: result.insertedId.toString() }
+  const createdCategory = { 
+    ...category, 
+    id: result.insertedId.toString(),
+    _id: result.insertedId
+  }
+  
+  console.log('Categoria criada com sucesso:', createdCategory)
+  return createdCategory
 }
 
 export async function updateCategory(id: string, category: Partial<Category>) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('categories')
   
-  await collection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: category }
-  )
+  console.log('Iniciando atualização da categoria no MongoDB:', { id, category })
+
+  try {
+    // Remove campos que não devem ser atualizados
+    const { _id, id: categoryId, ...updateData } = category
+
+    // Primeiro busca a categoria existente
+    const existingCategory = await collection.findOne({ 
+      _id: new ObjectId(id)
+    })
+
+    console.log('Categoria existente:', existingCategory)
+
+    if (!existingCategory) {
+      console.error('Categoria não encontrada:', id)
+      throw new Error('Categoria não encontrada')
+    }
+
+    // Mantém o restaurantId original
+    const restaurantId = existingCategory.restaurantId
+
+    // Verifica se o restaurantId da requisição corresponde ao da categoria
+    if (category.restaurantId && category.restaurantId !== restaurantId) {
+      console.error('Tentativa de edição não autorizada:', {
+        categoriaRestaurantId: restaurantId,
+        requestRestaurantId: category.restaurantId
+      })
+      throw new Error('Não autorizado a editar esta categoria')
+    }
+
+    // Prepara os dados para atualização
+    const updateDoc = {
+      $set: {
+        name: updateData.name || existingCategory.name,
+        description: updateData.description || existingCategory.description,
+        order: updateData.order ?? existingCategory.order,
+        restaurantId,
+        updatedAt: new Date()
+      }
+    }
+
+    console.log('Dados para atualização:', updateDoc)
+
+    // Faz a atualização
+    const result = await collection.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      updateDoc,
+      { 
+        returnDocument: 'after'
+      }
+    )
+
+    console.log('Resultado da atualização:', result)
+
+    // Na versão mais recente do MongoDB, o resultado vem diretamente no objeto
+    const updatedDoc = result
+
+    if (!updatedDoc) {
+      console.error('Falha na atualização - documento não encontrado:', { id, result })
+      throw new Error('Categoria não encontrada ou não pôde ser atualizada')
+    }
+
+    // Formata o resultado para retornar
+    const updatedCategory = {
+      ...updatedDoc,
+      id: updatedDoc._id.toString()
+    }
+
+    // Remove campos que não devem ser retornados
+    delete updatedCategory._id
+
+    console.log('Categoria atualizada com sucesso:', updatedCategory)
+    return updatedCategory
+  } catch (error) {
+    console.error('Erro ao atualizar categoria no MongoDB:', error)
+    throw error
+  }
 }
 
 export async function deleteCategory(id: string) {
@@ -134,10 +232,85 @@ export async function updateProduct(id: string, product: Partial<Product>) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('products')
   
-  await collection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: product }
-  )
+  console.log('Iniciando atualização do produto:', { id, product })
+
+  try {
+    // Remove campos que não devem ser atualizados
+    const { _id, id: productId, ...updateData } = product
+
+    // Primeiro busca o produto existente
+    const existingProduct = await collection.findOne({ 
+      _id: new ObjectId(id)
+    })
+
+    console.log('Produto existente:', existingProduct)
+
+    if (!existingProduct) {
+      console.error('Produto não encontrado:', id)
+      throw new Error('Produto não encontrado')
+    }
+
+    // Mantém o restaurantId original
+    const restaurantId = existingProduct.restaurantId
+
+    // Verifica se o restaurantId da requisição corresponde ao do produto
+    if (product.restaurantId && product.restaurantId !== restaurantId) {
+      console.error('Tentativa de edição não autorizada:', {
+        produtoRestaurantId: restaurantId,
+        requestRestaurantId: product.restaurantId
+      })
+      throw new Error('Não autorizado a editar este produto')
+    }
+
+    // Prepara os dados para atualização
+    const updateDoc = {
+      $set: {
+        name: updateData.name || existingProduct.name,
+        description: updateData.description || existingProduct.description,
+        price: updateData.price ?? existingProduct.price,
+        categoryId: updateData.categoryId || existingProduct.categoryId,
+        available: updateData.available ?? existingProduct.available,
+        featured: updateData.featured ?? existingProduct.featured,
+        additions: updateData.additions || existingProduct.additions,
+        image: updateData.image ?? existingProduct.image,
+        restaurantId,
+        updatedAt: new Date()
+      }
+    }
+
+    console.log('Dados para atualização:', updateDoc)
+
+    // Faz a atualização
+    const result = await collection.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      updateDoc,
+      { 
+        returnDocument: 'after'
+      }
+    )
+
+    console.log('Resultado da atualização:', result)
+
+    if (!result) {
+      console.error('Falha na atualização - produto não encontrado:', { id, result })
+      throw new Error('Produto não encontrado ou não pôde ser atualizado')
+    }
+
+    // Formata o resultado para retornar
+    const updatedProduct = {
+      ...result,
+      id: result._id.toString()
+    }
+
+    // Remove campos que não devem ser retornados
+    delete updatedProduct._id
+
+    console.log('Produto atualizado com sucesso:', updatedProduct)
+    return updatedProduct
+  } catch (error) {
+    console.error('Erro ao atualizar produto:', error)
+    throw error
+  }
 }
 
 export async function deleteProduct(id: string) {
@@ -162,14 +335,38 @@ export async function getOrder(id: string) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('orders')
   
-  return collection.findOne({ _id: new ObjectId(id) })
+  console.log('Buscando pedido com ID:', id)
+  
+  try {
+    const order = await collection.findOne({ _id: new ObjectId(id) })
+    
+    if (!order) {
+      console.log('Pedido não encontrado:', id)
+      return null
+    }
+    
+    // Normaliza o ID antes de retornar
+    const normalizedOrder = {
+      ...order,
+      id: order._id.toString(),
+      _id: order._id.toString() // Mantém _id como string para compatibilidade
+    }
+    
+    console.log('Pedido encontrado:', normalizedOrder)
+    return normalizedOrder
+  } catch (error) {
+    console.error('Erro ao buscar pedido:', error)
+    throw error
+  }
 }
 
 export async function createOrder(order: Omit<Order, 'id'>) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('orders')
   
-  const result = await collection.insertOne({
+  console.log('Criando pedido com dados:', order)
+
+  const orderData = {
     ...order,
     createdAt: new Date(),
     statusUpdates: [
@@ -179,9 +376,19 @@ export async function createOrder(order: Omit<Order, 'id'>) {
         message: 'Pedido realizado'
       }
     ]
-  })
+  }
   
-  return { ...order, id: result.insertedId.toString() }
+  const result = await collection.insertOne(orderData)
+  
+  // Normaliza o ID antes de retornar
+  const createdOrder = {
+    ...orderData,
+    id: result.insertedId.toString(),
+    _id: result.insertedId.toString() // Mantém _id como string para compatibilidade
+  }
+  
+  console.log('Pedido criado com sucesso:', createdOrder)
+  return createdOrder
 }
 
 export async function updateOrderStatus(id: string, status: string, message: string) {

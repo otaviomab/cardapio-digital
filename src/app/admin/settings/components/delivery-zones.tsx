@@ -61,7 +61,7 @@ export function DeliveryZones({ zones, onChange }: DeliveryZonesProps) {
       </div>
 
       <div className="space-y-4">
-        {zones.map((zone) => (
+        {zones.map((zone, index) => (
           <div
             key={zone.id}
             className="rounded-lg border border-gray-200 bg-white p-4"
@@ -85,32 +85,46 @@ export function DeliveryZones({ zones, onChange }: DeliveryZonesProps) {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Distância Mínima (km)
+                  Distância Mínima
                 </label>
-                <NumericFormat
-                  value={zone.minDistance}
-                  onValueChange={(values) => {
-                    handleZoneChange(zone.id, 'minDistance', values.floatValue || 0)
+                <input
+                  type="text"
+                  value={`${zone.minDistance} km`}
+                  onFocus={(e) => {
+                    setTimeout(() => {
+                      e.target.setSelectionRange(0, e.target.value.length - 3)
+                    }, 0)
                   }}
-                  decimalScale={1}
-                  fixedDecimalScale
-                  suffix=" km"
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/[^0-9.]/g, '')
+                    if (value === '') value = '0'
+                    const newZones = [...zones]
+                    newZones[index] = { ...zone, minDistance: Number(value) }
+                    onChange(newZones)
+                  }}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Distância Máxima (km)
+                  Distância Máxima
                 </label>
-                <NumericFormat
-                  value={zone.maxDistance}
-                  onValueChange={(values) => {
-                    handleZoneChange(zone.id, 'maxDistance', values.floatValue || 0)
+                <input
+                  type="text"
+                  value={`${zone.maxDistance} km`}
+                  onFocus={(e) => {
+                    setTimeout(() => {
+                      e.target.setSelectionRange(0, e.target.value.length - 3)
+                    }, 0)
                   }}
-                  decimalScale={1}
-                  fixedDecimalScale
-                  suffix=" km"
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/[^0-9.]/g, '')
+                    if (value === '') value = '0'
+                    const newZones = [...zones]
+                    newZones[index] = { ...zone, maxDistance: Number(value) }
+                    onChange(newZones)
+                  }}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
                 />
               </div>
@@ -119,14 +133,30 @@ export function DeliveryZones({ zones, onChange }: DeliveryZonesProps) {
                 <label className="block text-sm font-medium text-gray-700">
                   Taxa de Entrega
                 </label>
-                <NumericFormat
-                  value={zone.fee}
-                  onValueChange={(values) => {
-                    handleZoneChange(zone.id, 'fee', values.floatValue || 0)
+                <input
+                  type="text"
+                  value={zone.fee === 0 ? 'R$ 0,00' : `R$ ${zone.fee.toFixed(2).replace('.', ',')}`}
+                  onFocus={(e) => {
+                    const target = e.target
+                    const value = zone.fee.toString()
+                    target.value = value
+                    setTimeout(() => {
+                      target.setSelectionRange(0, value.length)
+                    }, 0)
                   }}
-                  decimalScale={2}
-                  fixedDecimalScale
-                  prefix="R$ "
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/[^\d]/g, '')
+                    if (value === '') value = '0'
+                    const numericValue = Number(value) / 100
+                    const newZones = [...zones]
+                    newZones[index] = { ...zone, fee: numericValue }
+                    onChange(newZones)
+                  }}
+                  onBlur={(e) => {
+                    const newZones = [...zones]
+                    newZones[index] = { ...zone, fee: Number(zone.fee.toFixed(2)) }
+                    onChange(newZones)
+                  }}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-green-500 sm:text-sm"
                 />
               </div>

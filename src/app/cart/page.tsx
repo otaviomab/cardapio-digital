@@ -263,8 +263,16 @@ export default function CartPage() {
       // Limpa o carrinho
       clearCart()
 
+      // Verifica se temos um ID válido antes de redirecionar
+      if (!data.id && !data._id) {
+        throw new Error('ID do pedido não retornado pelo servidor')
+      }
+
+      // Usa o id ou _id, o que estiver disponível
+      const orderId = data.id || data._id
+
       // Redireciona para a página de status
-      router.push(`/order-status/${data._id}`)
+      router.push(`/order-status/${orderId}`)
     } catch (error) {
       console.error('Erro completo:', error)
       if (error instanceof Error) {
@@ -769,26 +777,30 @@ export default function CartPage() {
                 </div>
               )}
 
-              <button 
-                disabled={!canFinishOrder}
-                onClick={handleFinishOrder}
-                className="mt-8 w-full rounded-full bg-green-600 px-4 py-3 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {!isLoading 
-                  ? 'Restaurante fechado'
-                  : !orderType 
-                  ? 'Escolha como quer receber seu pedido'
-                  : !customerData.name || !customerData.phone
-                  ? 'Preencha seus dados'
-                  : !selectedPayment
-                  ? 'Escolha a forma de pagamento'
-                  : selectedPayment === 'cash' && !changeFor
-                  ? 'Informe o valor para troco'
-                  : orderType === 'delivery' && !isDeliverable
-                  ? 'Endereço fora da área de entrega'
-                  : 'Finalizar Pedido'
-                }
-              </button>
+              {/* Botão de Finalizar com espaçamento maior */}
+              <div className="mt-8">
+                <button
+                  type="button"
+                  onClick={handleFinishOrder}
+                  disabled={!canFinishOrder}
+                  className={`w-full rounded-lg px-4 py-3 text-center font-medium text-white transition-colors
+                    ${canFinishOrder
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'cursor-not-allowed bg-zinc-300'
+                    }`}
+                >
+                  {!isLoading && !feeLoading
+                    ? canFinishOrder
+                      ? 'Finalizar Pedido'
+                      : !isOpen
+                        ? 'Restaurante Fechado'
+                        : orderType === 'delivery' && !isDeliverable && addressData.cep
+                          ? 'Fora da Área de Entrega'
+                          : 'Preencha Todos os Campos'
+                    : 'Carregando...'}
+                </button>
+              </div>
+
             </div>
           </div>
         </div>

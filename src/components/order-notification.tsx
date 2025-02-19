@@ -8,6 +8,8 @@ import { ptBR } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import useSound from 'use-sound'
 
+const PRINTER_SERVER = process.env.NEXT_PUBLIC_PRINTER_SERVER || 'http://localhost:3002'
+
 interface OrderNotificationProps {
   order: Order
   onClose: () => void
@@ -18,6 +20,7 @@ export function OrderNotification({ order, onClose, style }: OrderNotificationPr
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [playNewOrder] = useSound('/sounds/new-order.mp3', {
     volume: 0.7,
     interrupt: true
@@ -51,8 +54,10 @@ export function OrderNotification({ order, onClose, style }: OrderNotificationPr
     }
     
     setIsUpdating(true)
+    setError(null)
 
     try {
+      // Atualiza o status do pedido
       const response = await fetch(`/api/mongodb?action=updateOrderStatus&id=${order._id}`, {
         method: 'PUT',
         headers: {
@@ -70,15 +75,41 @@ export function OrderNotification({ order, onClose, style }: OrderNotificationPr
         throw new Error('Erro ao atualizar status')
       }
 
+      // Se o pedido foi confirmado, tenta imprimir
       if (action === 'confirmed') {
-        router.push(`/admin/orders/${order._id}`)
+        try {
+          const printResponse = await fetch(`${PRINTER_SERVER}/print-order`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(order)
+          })
+
+          if (!printResponse.ok) {
+            const error = await printResponse.json()
+            throw new Error(error.error || 'Erro ao imprimir pedido')
+          }
+
+          // Redireciona para a página do pedido
+          router.push(`/admin/orders/${order._id}`)
+        } catch (printError) {
+          console.error('Erro ao imprimir pedido:', printError)
+          setError('Pedido aceito, mas não foi possível imprimir. Verifique a impressora.')
+          // Aguarda 3 segundos antes de fechar para mostrar o erro
+          setTimeout(() => {
+            setIsVisible(false)
+            setTimeout(onClose, 300)
+          }, 3000)
+          return
+        }
       }
 
       setIsVisible(false)
       setTimeout(onClose, 300)
     } catch (error) {
       console.error('Erro ao atualizar pedido:', error)
-      alert('Erro ao atualizar pedido. Tente novamente.')
+      setError('Erro ao atualizar pedido. Tente novamente.')
     } finally {
       setIsUpdating(false)
     }
@@ -102,6 +133,12 @@ export function OrderNotification({ order, onClose, style }: OrderNotificationPr
         isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
       }`}>
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-xl">
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-green-100 p-2">
@@ -160,7 +197,7 @@ export function OrderNotification({ order, onClose, style }: OrderNotificationPr
               disabled={isUpdating}
               className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
-              Aceitar
+              {isUpdating ? 'Processando...' : 'Aceitar'}
             </button>
           </div>
         </div>

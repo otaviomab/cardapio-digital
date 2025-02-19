@@ -11,7 +11,8 @@ import {
   Tag,
   ChevronDown,
   ChevronUp,
-  Store
+  Store,
+  Eye
 } from 'lucide-react'
 import Image from 'next/image'
 import { Product, Category } from '@/types/restaurant'
@@ -28,6 +29,7 @@ import {
   updateProduct,
   deleteProduct
 } from '@/lib/api-services'
+import Link from 'next/link'
 
 export default function MenuPage() {
   const { supabase } = useSupabase()
@@ -37,6 +39,8 @@ export default function MenuPage() {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [restaurantSlug, setRestaurantSlug] = useState<string | null>(null)
   
   // Estados para os modais
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
@@ -55,7 +59,25 @@ export default function MenuPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuário não autenticado')
 
-      console.log('Carregando dados para o usuário:', user.id)
+      console.log('Usuário autenticado:', {
+        id: user.id,
+        email: user.email
+      })
+
+      setCurrentUserId(user.id)
+
+      // Busca as configurações do restaurante para obter o slug
+      const { data: settings } = await supabase
+        .from('restaurant_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+
+      console.log('Configurações do restaurante:', settings)
+
+      if (settings?.slug) {
+        setRestaurantSlug(settings.slug)
+      }
 
       const [categoriesData, productsData] = await Promise.all([
         getCategories(user.id),
@@ -80,29 +102,28 @@ export default function MenuPage() {
 
   // Filtra os produtos baseado na busca e categoria
   const filteredProducts = products.filter(product => {
-    console.log('Verificando produto:', {
-      produto: product,
-      categoryId: product.categoryId,
-      selectedCategory,
-      matchesCategory: !selectedCategory || product.categoryId === selectedCategory
-    })
+    if (!product.name || !product.categoryId) return false
 
     const matchesSearch = 
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase())
+      (product.description || '').toLowerCase().includes(searchTerm.toLowerCase())
     
     // Verifica se o produto tem uma categoria válida
-    const matchingCategory = categories.find(cat => 
-      cat._id?.toString() === product.categoryId || 
-      cat.id === product.categoryId || 
-      product.categoryId === 'Burguer'
-    )
+    const matchingCategory = categories.find(cat => {
+      const categoryId = cat._id?.toString() || cat.id
+      const productCategoryId = product.categoryId?.toString()
+      return categoryId === productCategoryId
+    })
+
+    if (!matchingCategory) {
+      console.warn('Produto sem categoria válida:', product)
+      return false
+    }
     
     const matchesCategory = !selectedCategory || 
-      product.categoryId === selectedCategory || 
-      (matchingCategory && (matchingCategory._id?.toString() === selectedCategory || matchingCategory.id === selectedCategory))
+      product.categoryId?.toString() === selectedCategory?.toString()
 
-    return matchesSearch && matchingCategory && matchesCategory
+    return matchesSearch && matchesCategory
   })
 
   // Toggle para expandir/recolher categoria
@@ -121,7 +142,26 @@ export default function MenuPage() {
   }
 
   const handleEditProduct = (product: Product) => {
-    setSelectedProduct(product)
+    // Garante que temos uma categoria válida
+    const category = categories.find(cat => 
+      cat._id?.toString() === product.categoryId || 
+      cat.id === product.categoryId
+    )
+
+    if (!category) {
+      console.error('Categoria não encontrada para o produto:', product)
+      alert('Erro: Categoria do produto não encontrada')
+      return
+    }
+
+    // Normaliza os dados do produto antes de editar
+    const normalizedProduct = {
+      ...product,
+      categoryId: category._id?.toString() || category.id,
+      id: product._id?.toString() || product.id
+    }
+
+    setSelectedProduct(normalizedProduct)
     setIsProductModalOpen(true)
   }
 
@@ -131,7 +171,11 @@ export default function MenuPage() {
   }
 
   const handleEditCategory = (category: Category) => {
-    setSelectedCategoryToEdit(category)
+    // Cria uma cópia do objeto para evitar referência direta
+    setSelectedCategoryToEdit({
+      ...category,
+      id: category._id?.toString() || category.id
+    })
     setIsCategoryModalOpen(true)
   }
 
@@ -141,36 +185,46 @@ export default function MenuPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuário não autenticado')
 
-      console.log('Dados do produto a ser criado:', data)
+      console.log('Dados do produto a ser salvo:', data)
 
       if (selectedProduct) {
-        await updateProduct(selectedProduct.id, data)
+        // Atualiza produto existente
+        await updateProduct(selectedProduct.id, {
+          ...data,
+          categoryId: selectedProduct.categoryId // Mantém a categoria original
+        })
       } else {
         // Encontra a categoria selecionada
-        const selectedCat = categories.find(cat => cat._id?.toString() === data.categoryId || cat.id === data.categoryId)
-        console.log('Categoria selecionada:', selectedCat)
-
+        const selectedCat = categories.find(cat => 
+          cat._id?.toString() === data.categoryId || 
+          cat.id === data.categoryId
+        )
+        
+        if (!selectedCat) {
+          throw new Error('Categoria não encontrada')
+        }
+        
         // Garante que todos os campos obrigatórios estão presentes
         const newProductData = {
           ...data,
           restaurantId: user.id,
-          image: data.image || data.imageUrl, // Aceita qualquer um dos campos
-          available: data.available ?? true, // Valor padrão se não fornecido
-          featured: data.featured ?? false, // Valor padrão se não fornecido
-          additions: data.additions || [], // Garante que additions existe
-          categoryId: selectedCat?._id?.toString() || selectedCat?.id || data.categoryId // Usa o ID correto da categoria
+          image: data.image || data.imageUrl,
+          available: data.available ?? true,
+          featured: data.featured ?? false,
+          additions: data.additions || [],
+          categoryId: selectedCat._id?.toString() || selectedCat.id
         }
 
-        console.log('Dados normalizados do produto:', newProductData)
-        console.log('Categorias disponíveis:', categories)
-
-        const newProduct = await createProduct(user.id, newProductData as Product)
-        console.log('Produto criado:', newProduct)
+        await createProduct(user.id, newProductData as Product)
       }
 
-      // Recarrega os dados e fecha o modal
+      // Recarrega todos os dados para garantir consistência
       await loadData()
+
+      // Fecha o modal
       setIsProductModalOpen(false)
+      // Limpa o produto selecionado
+      setSelectedProduct(null)
     } catch (error) {
       console.error('Erro ao salvar produto:', error)
       alert('Erro ao salvar produto. Por favor, tente novamente.')
@@ -182,17 +236,53 @@ export default function MenuPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuário não autenticado')
 
+      console.log('Salvando categoria com dados:', data)
+
       if (selectedCategoryToEdit) {
-        await updateCategory(selectedCategoryToEdit.id, data)
+        // Prepara os dados para atualização
+        const updateData = {
+          name: data.name,
+          description: data.description,
+          order: data.order,
+          restaurantId: user.id
+        }
+        console.log('Atualizando categoria existente:', {
+          id: selectedCategoryToEdit.id,
+          updateData
+        })
+        const updatedCategory = await updateCategory(selectedCategoryToEdit.id, updateData)
+        
+        // Atualiza o estado local com a categoria atualizada
+        setCategories(prevCategories => 
+          prevCategories.map(cat => 
+            (cat._id?.toString() || cat.id) === selectedCategoryToEdit.id 
+              ? { ...updatedCategory, _id: updatedCategory.id }
+              : cat
+          )
+        )
+        
+        // Atualiza o selectedCategoryToEdit com os novos dados
+        setSelectedCategoryToEdit(updatedCategory)
       } else {
-        await createCategory(user.id, data as Category)
+        // Garante que o restaurantId está presente ao criar uma nova categoria
+        const categoryData = {
+          name: data.name,
+          description: data.description,
+          order: categories.length, // Adiciona na última posição
+          restaurantId: user.id,
+          createdAt: new Date()
+        }
+        console.log('Criando nova categoria com dados:', categoryData)
+        await createCategory(user.id, categoryData as Category)
       }
 
       await loadData()
       setIsCategoryModalOpen(false)
+      // Limpa a categoria selecionada após fechar o modal
+      setSelectedCategoryToEdit(null)
     } catch (error) {
       console.error('Erro ao salvar categoria:', error)
-      alert('Erro ao salvar categoria. Por favor, tente novamente.')
+      alert(error instanceof Error ? error.message : 'Erro ao salvar categoria. Por favor, tente novamente.')
     }
   }
 
@@ -253,6 +343,17 @@ export default function MenuPage() {
         </div>
 
         <div className="flex gap-3">
+          {restaurantSlug && (
+            <Link
+              href={`/${restaurantSlug}`}
+              target="_blank"
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+            >
+              <Eye className="h-4 w-4" />
+              Ver Cardápio
+            </Link>
+          )}
+
           <button
             onClick={handleNewCategory}
             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"

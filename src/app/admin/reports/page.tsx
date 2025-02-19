@@ -82,7 +82,26 @@ export default function ReportsPage() {
         }
 
         const data = await response.json()
-        setReportData(data)
+
+        // Agrupa produtos pelo nome
+        const groupedProducts = data.bestSellingProducts.reduce((acc: any[], product) => {
+          const existingProduct = acc.find(p => p.name === product.name)
+          if (existingProduct) {
+            existingProduct.quantity += product.quantity
+            existingProduct.revenue += product.revenue
+          } else {
+            acc.push({ ...product })
+          }
+          return acc
+        }, [])
+
+        // Ordena por quantidade vendida
+        groupedProducts.sort((a, b) => b.quantity - a.quantity)
+
+        setReportData({
+          ...data,
+          bestSellingProducts: groupedProducts
+        })
       } catch (error) {
         console.error('Erro ao carregar relatório:', error)
         alert('Erro ao carregar dados do relatório')
@@ -228,7 +247,7 @@ export default function ReportsPage() {
         <div className="divide-y divide-gray-200">
           {reportData.bestSellingProducts.map((product, index) => (
             <div
-              key={product.name}
+              key={`${index}-${product.name}`}
               className="flex items-center justify-between px-6 py-4"
             >
               <div className="flex items-center gap-4">

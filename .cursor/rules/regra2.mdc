@@ -1,0 +1,116 @@
+---
+description: Regra orientará o Cursor a manter uma documentação detalhada e organizada do processo de desenvolvimento
+globs: 
+---
+Ao desenvolver este sistema, por favor:
+
+1. Crie um arquivo DEVELOPMENT-LOG.md na raiz do projeto e mantenha um registro detalhado de:
+
+   - Data e hora de cada sessão de desenvolvimento
+   - Arquivos criados ou modificados
+   - Decisões técnicas tomadas
+   - Problemas encontrados e suas soluções
+   - Dependências adicionadas
+   - Alterações na arquitetura
+   - Impactos no design system
+
+2. Para cada componente ou feature desenvolvida, documente:
+
+   ## [Nome do Componente/Feature]
+   - Descrição funcional
+   - Dependências e requisitos
+   - Estrutura do código
+   - Problemas específicos encontrados
+   - Soluções implementadas
+   - Testes realizados
+   - TODO list
+   - Breaking changes
+
+3. Para cada problema encontrado, registre:
+
+   ## Problema #[número]
+   - Descrição detalhada
+   - Contexto de ocorrência
+   - Tentativas de solução
+   - Solução final implementada
+   - Lições aprendidas
+   - Impacto no desenvolvimento
+   - Tempo de resolução
+
+4. Para o design system, documente:
+
+   ## Design System - Atualizações
+   - Novos componentes
+   - Modificações em componentes existentes
+   - Novas variáveis CSS
+   - Alterações em padrões
+   - Exemplos de uso
+   - Breaking changes
+
+5. Para cada sessão de desenvolvimento, registre:
+
+   ## Sessão [data]
+   ### Iniciado: [hora]
+   ### Finalizado: [hora]
+   
+   #### Objetivos da sessão:
+   - Lista de objetivos
+
+   #### Realizações:
+   - O que foi completado
+
+6. Mantenha uma seção de referências:
+
+   ## Referências
+   - Links úteis
+   - Documentações consultadas
+   - Tutoriais seguidos
+   - StackOverflow posts relevantes
+
+7. Para cada biblioteca ou framework usado:
+
+   ## [Nome da Biblioteca]
+   - Versão
+   - Motivo da escolha
+   - Principais funcionalidades utilizadas
+   - Problemas de integração
+   - Soluções encontradas
+   - Exemplos de uso
+
+8. Mantenha uma seção de boas práticas:
+
+   ## Boas Práticas Estabelecidas
+   - Padrões de código
+   - Convenções de nomenclatura
+   - Estrutura de arquivos
+   - Práticas de commit
+   - Processo de review
+
+9. Atualize o changelog:
+
+   ## Changelog
+   ### [Versão] - [Data]
+   #### Adicionado
+   - Novas features
+   #### Modificado
+   - Alterações em features existentes
+   #### Corrigido
+   - Bugs resolvidos
+   #### Removido
+   - Features deprecadas
+
+10. Para performance e otimizações:
+
+    ## Otimizações
+    - Melhorias implementadas
+    - Métricas antes/depois
+    - Técnicas utilizadas
+    - Resultados obtidos
+
+Por favor, mantenha este log atualizado em tempo real conforme desenvolve o sistema. Inclua snippets de código relevantes, screenshots quando necessário, e mantenha uma estrutura clara e navegável.
+
+Use markdown para formatação e mantenha um sumário atualizado no topo do documento.
+
+Lembre-se de incluir tags e categorias para facilitar a busca de informações específicas.
+
+#desenvolvimento #log #documentação #problemas #soluções

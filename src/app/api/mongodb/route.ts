@@ -54,8 +54,28 @@ export async function GET(request: NextRequest) {
         if (!orderId) {
           return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
         }
-        const order = await getOrder(orderId)
-        return NextResponse.json(order)
+        try {
+          const order = await getOrder(orderId)
+          if (!order) {
+            return NextResponse.json(
+              { error: 'Pedido não encontrado' },
+              { status: 404 }
+            )
+          }
+          return NextResponse.json(order)
+        } catch (error) {
+          console.error('Erro ao buscar pedido:', error)
+          if (error instanceof Error && error.message.includes('ObjectId')) {
+            return NextResponse.json(
+              { error: 'ID do pedido inválido' },
+              { status: 400 }
+            )
+          }
+          return NextResponse.json(
+            { error: 'Erro ao buscar pedido' },
+            { status: 500 }
+          )
+        }
 
       case 'getDashboardStats': {
         const restaurantIdForStats = searchParams.get('restaurantId')
@@ -97,9 +117,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(newCategory)
 
       case 'updateCategory':
-        const { id: categoryId, ...categoryData } = body
-        await updateCategory(categoryId, categoryData)
-        return NextResponse.json({ success: true })
+        try {
+          const { id: categoryId, ...categoryData } = body
+          console.log('Atualizando categoria na API:', { categoryId, categoryData })
+          
+          if (!categoryId) {
+            return NextResponse.json(
+              { error: 'ID da categoria é obrigatório' },
+              { status: 400 }
+            )
+          }
+
+          const result = await updateCategory(categoryId, categoryData)
+          console.log('Categoria atualizada com sucesso:', result)
+          return NextResponse.json({ success: true, result })
+        } catch (error) {
+          console.error('Erro ao atualizar categoria:', error)
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Erro ao atualizar categoria' },
+            { status: 500 }
+          )
+        }
 
       case 'deleteCategory':
         await deleteCategory(body.id)
@@ -175,11 +213,25 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json()
+    console.log('PUT request recebido:', { action, id, body })
 
     switch (action) {
       case 'updateCategory':
-        await updateCategory(id, body)
-        return NextResponse.json({ success: true })
+        try {
+          console.log('Iniciando atualização de categoria:', { id, body })
+          const result = await updateCategory(id, body)
+          console.log('Categoria atualizada com sucesso:', result)
+          return NextResponse.json(result)
+        } catch (error) {
+          console.error('Erro ao atualizar categoria na API:', error)
+          return NextResponse.json(
+            { 
+              error: error instanceof Error ? error.message : 'Erro ao atualizar categoria',
+              details: error
+            }, 
+            { status: 500 }
+          )
+        }
 
       case 'updateProduct':
         await updateProduct(id, body)
@@ -194,8 +246,14 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
     }
   } catch (error) {
-    console.error('Erro na API:', error)
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+    console.error('Erro geral na API:', error)
+    return NextResponse.json(
+      { 
+        error: 'Erro interno do servidor',
+        details: error instanceof Error ? error.message : String(error)
+      }, 
+      { status: 500 }
+    )
   }
 }
 

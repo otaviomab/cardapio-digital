@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
+import { type WeekDay } from '@/lib/hours-validation'
 
 interface OpeningHour {
-  days: string
-  hours: string
+  days: WeekDay[]
+  start: string
+  end: string
+  enabled: boolean
 }
 
 interface UseRestaurantHoursResult {
@@ -10,6 +13,28 @@ interface UseRestaurantHoursResult {
   nextOpeningTime: string | null
   currentSchedule: string | null
   isLoading: boolean
+}
+
+// Mapeia os dias da semana para números (0 = Domingo, 1 = Segunda, etc)
+const dayToNumber: Record<WeekDay, number> = {
+  domingo: 0,
+  segunda: 1,
+  terca: 2,
+  quarta: 3,
+  quinta: 4,
+  sexta: 5,
+  sabado: 6
+}
+
+// Mapeia números para nomes dos dias
+const numberToDay: Record<number, string> = {
+  0: 'Domingo',
+  1: 'Segunda',
+  2: 'Terça',
+  3: 'Quarta',
+  4: 'Quinta',
+  5: 'Sexta',
+  6: 'Sábado'
 }
 
 export function useRestaurantHours(openingHours: OpeningHour[]): UseRestaurantHoursResult {
@@ -30,38 +55,30 @@ export function useRestaurantHours(openingHours: OpeningHour[]): UseRestaurantHo
       const currentDay = now.getDay() // 0 = Domingo, 1 = Segunda, ...
       const currentTime = now.getHours() * 60 + now.getMinutes() // Converte para minutos
 
-      // Mapeia os dias da semana para os formatos do restaurante
-      const dayMappings = {
-        'Segunda à Sexta': [1, 2, 3, 4, 5],
-        'Segunda a Sexta': [1, 2, 3, 4, 5],
-        'Sábado e Domingo': [0, 6],
-        'Sábado': [6],
-        'Domingo': [0],
-        'Todos os dias': [0, 1, 2, 3, 4, 5, 6]
-      }
-
       let isCurrentlyOpen = false
       let nextOpening: string | null = null
       let current: string | null = null
 
-      for (const schedule of openingHours) {
-        // Encontra os dias que se aplicam a este horário
-        const applicableDays = Object.entries(dayMappings).reduce((days, [key, value]) => {
-          if (schedule.days.includes(key)) {
-            return [...days, ...value]
-          }
-          return days
-        }, [] as number[])
+      // Filtra apenas horários ativos
+      const activeHours = openingHours.filter(hour => hour.enabled)
+
+      for (const schedule of activeHours) {
+        // Converte os dias do horário para números
+        const scheduleDays = schedule.days.map(day => dayToNumber[day])
 
         // Se o dia atual está incluído neste horário
-        if (applicableDays.includes(currentDay)) {
-          current = `${schedule.days}: ${schedule.hours}`
+        if (scheduleDays.includes(currentDay)) {
+          // Formata o horário atual para exibição
+          const daysFormatted = schedule.days
+            .map(day => numberToDay[dayToNumber[day]])
+            .join(', ')
+          current = `${daysFormatted}: ${schedule.start} às ${schedule.end}`
           
-          // Extrai as horas do formato "HH:mm às HH:mm"
-          const [start, end] = schedule.hours.split(' às ').map(time => {
-            const [hours, minutes] = time.split(':').map(Number)
-            return hours * 60 + (minutes || 0) // Converte para minutos
-          })
+          // Converte os horários para minutos
+          const [startHours, startMinutes] = schedule.start.split(':').map(Number)
+          const [endHours, endMinutes] = schedule.end.split(':').map(Number)
+          const start = startHours * 60 + startMinutes
+          const end = endHours * 60 + endMinutes
 
           // Verifica se o horário atual está dentro do período de funcionamento
           if (end < start) {
@@ -78,7 +95,7 @@ export function useRestaurantHours(openingHours: OpeningHour[]): UseRestaurantHo
 
           if (!isCurrentlyOpen && currentTime < start) {
             // Se ainda não abriu, este é o próximo horário de abertura
-            nextOpening = schedule.hours.split(' às ')[0]
+            nextOpening = schedule.start
           }
         }
       }

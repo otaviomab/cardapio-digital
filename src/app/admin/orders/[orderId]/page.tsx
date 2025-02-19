@@ -62,6 +62,35 @@ const statusColors = {
   cancelled: 'text-red-500 bg-red-50',
 }
 
+const paymentMethods = {
+  credit_card: {
+    label: 'Cartão de Crédito',
+    icon: CreditCard,
+    color: 'text-blue-600'
+  },
+  debit_card: {
+    label: 'Cartão de Débito',
+    icon: CreditCard,
+    color: 'text-green-600'
+  },
+  pix: {
+    label: 'PIX',
+    icon: CreditCard,
+    color: 'text-purple-600'
+  },
+  cash: {
+    label: 'Dinheiro',
+    icon: CreditCard,
+    color: 'text-gray-600',
+    hasChange: true
+  },
+  meal_voucher: {
+    label: 'Vale-Refeição',
+    icon: CreditCard,
+    color: 'text-orange-600'
+  }
+} as const
+
 export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
   const [order, setOrder] = useState<Order | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -241,14 +270,12 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-zinc-400" />
+                  <CreditCard className={`h-4 w-4 ${
+                    paymentMethods[order.payment.method as keyof typeof paymentMethods]?.color || 'text-zinc-400'
+                  }`} />
                   <span className="text-sm text-zinc-900">
-                    {order.payment.method === 'credit' && 'Cartão de Crédito'}
-                    {order.payment.method === 'debit' && 'Cartão de Débito'}
-                    {order.payment.method === 'pix' && 'PIX'}
-                    {order.payment.method === 'cash' && 'Dinheiro'}
-                    {order.payment.method === 'wallet' && 'Vale-Refeição'}
-                    {order.payment.change && ` (Troco para ${order.payment.change})`}
+                    {paymentMethods[order.payment.method as keyof typeof paymentMethods]?.label || 'Método não definido'}
+                    {order.payment.method === 'cash' && order.payment.change && ` (Troco para R$ ${order.payment.change})`}
                   </span>
                 </div>
               </div>

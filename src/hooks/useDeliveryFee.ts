@@ -29,15 +29,18 @@ export function useDeliveryFee(
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null)
   const [isDeliverable, setIsDeliverable] = useState(false)
   
-  // Ref para armazenar o último endereço calculado
-  const lastCalculatedAddress = useRef<string>('')
+  // Ref para armazenar o último endereço calculado e seu status
+  const lastCalculation = useRef<{
+    address: string
+    isOutOfRange?: boolean
+  }>({ address: '' })
 
   const calculateFee = useCallback(async (destinationAddress: string) => {
     console.log('🚀 Iniciando cálculo de taxa de entrega:', {
       restaurantAddress,
       destinationAddress,
       deliveryZones,
-      lastCalculatedAddress: lastCalculatedAddress.current
+      lastCalculation: lastCalculation.current
     })
 
     // Se não houver zonas de entrega configuradas, usa uma zona padrão
@@ -53,9 +56,18 @@ export function useDeliveryFee(
       }]
     }
 
-    // Se o endereço for o mesmo que o último calculado, não recalcula
-    if (destinationAddress === lastCalculatedAddress.current) {
-      console.log('🔄 Mesmo endereço que o último cálculo, retornando...')
+    // Se o endereço for o mesmo que o último calculado E já sabemos que está fora da área
+    if (
+      destinationAddress === lastCalculation.current.address && 
+      lastCalculation.current.isOutOfRange
+    ) {
+      console.log('🔄 Endereço já verificado e está fora da área, ignorando novo cálculo')
+      return
+    }
+
+    // Se o endereço for o mesmo que o último calculado e não está marcado como fora da área
+    if (destinationAddress === lastCalculation.current.address && !lastCalculation.current.isOutOfRange) {
+      console.log('🔄 Mesmo endereço que o último cálculo válido, retornando...')
       return
     }
 
@@ -107,6 +119,12 @@ export function useDeliveryFee(
 
       console.log('🎯 Zona de entrega encontrada:', zone)
 
+      // Atualiza o último endereço calculado
+      lastCalculation.current = {
+        address: destinationAddress,
+        isOutOfRange: !zone
+      }
+
       if (!zone) {
         console.log('⚠️ Endereço fora da área de entrega')
         setFee(null)
@@ -126,15 +144,17 @@ export function useDeliveryFee(
       setEstimatedTime(zone.estimatedTime)
       setIsDeliverable(true)
       setError(null)
-      
-      // Atualiza o último endereço calculado
-      lastCalculatedAddress.current = destinationAddress
     } catch (err) {
       console.error('❌ Erro no cálculo:', err)
       setFee(null)
       setEstimatedTime(null)
       setIsDeliverable(false)
       setError(err instanceof Error ? err.message : 'Erro ao calcular taxa de entrega')
+      
+      // Limpa o status de fora de área em caso de erro
+      lastCalculation.current = {
+        address: destinationAddress
+      }
     } finally {
       setIsLoading(false)
     }
@@ -142,7 +162,6 @@ export function useDeliveryFee(
 
   // Limpa os estados quando o endereço do restaurante ou as zonas mudam
   useEffect(() => {
-    // Só reseta se realmente não houver endereço do restaurante ou zonas
     if (!restaurantAddress || (!deliveryZones || deliveryZones.length === 0)) {
       console.log('🔄 Resetando estados pois não há endereço ou zonas:', {
         temRestaurante: !!restaurantAddress,
@@ -152,7 +171,7 @@ export function useDeliveryFee(
       setEstimatedTime(null)
       setIsDeliverable(false)
       setError(null)
-      lastCalculatedAddress.current = ''
+      lastCalculation.current = { address: '' }
     }
   }, [restaurantAddress, deliveryZones])
 

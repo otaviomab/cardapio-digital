@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { printerService } from '@/lib/printer-service'
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    return NextResponse.json({ message: 'Printer service is only available in production' })
+  }
+
   try {
     const body = await request.json()
     const { action } = body
@@ -32,6 +36,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    return NextResponse.json({ message: 'Printer service is only available in production' })
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams
     const action = searchParams.get('action')

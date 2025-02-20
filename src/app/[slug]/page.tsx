@@ -4,11 +4,14 @@ import { cookies } from 'next/headers'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
-export default async function RestaurantPage({ 
-  params 
-}: { 
-  params: { slug: string } 
-}) {
+interface PageProps {
+  params: {
+    slug: string
+  }
+  searchParams?: { [key: string]: string | string[] | undefined }
+}
+
+export default async function RestaurantPage({ params }: PageProps) {
   const supabase = createServerComponentClient({ cookies })
 
   // Busca as configurações do restaurante pelo slug

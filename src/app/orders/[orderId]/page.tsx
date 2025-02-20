@@ -1,3 +1,5 @@
+import { CheckCircle2 } from 'lucide-react'
+
 const generateOrderNumber = (order: Order) => {
   const orderDate = new Date(order.createdAt)
   

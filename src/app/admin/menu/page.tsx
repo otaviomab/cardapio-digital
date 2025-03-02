@@ -212,6 +212,8 @@ export default function MenuPage() {
           available: data.available ?? true,
           featured: data.featured ?? false,
           additions: data.additions || [],
+          isPizza: data.isPizza ?? false,
+          allowHalfHalf: data.allowHalfHalf ?? false,
           categoryId: selectedCat._id?.toString() || selectedCat.id
         }
 
@@ -329,262 +331,265 @@ export default function MenuPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-krato-500" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cardápio</h1>
-          <p className="text-gray-600">Gerencie os produtos do seu cardápio</p>
-        </div>
+    <div className="min-h-screen w-full overflow-x-hidden pb-20">
+      <div className="flex flex-col gap-6 px-4 pt-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">Cardápio</h1>
+            <p className="text-gray-600">Gerencie os produtos do seu cardápio</p>
+          </div>
 
-        <div className="flex gap-3">
-          {restaurantSlug && (
-            <Link
-              href={`/${restaurantSlug}`}
-              target="_blank"
+          <div className="flex flex-wrap gap-2">
+            {restaurantSlug && (
+              <Link
+                href={`/${restaurantSlug}`}
+                target="_blank"
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+              >
+                <Eye className="h-4 w-4" />
+                Ver Cardápio
+              </Link>
+            )}
+
+            <button
+              onClick={handleNewCategory}
               className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
             >
-              <Eye className="h-4 w-4" />
-              Ver Cardápio
-            </Link>
-          )}
+              <Plus className="h-4 w-4" />
+              Nova Categoria
+            </button>
 
-          <button
-            onClick={handleNewCategory}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
-          >
-            <Plus className="h-4 w-4" />
-            Nova Categoria
-          </button>
-
-          <button
-            onClick={handleNewProduct}
-            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Produto
-          </button>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar produtos por nome ou descrição"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 pl-9 pr-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-400" />
-          <select
-            value={selectedCategory || ''}
-            onChange={(e) => setSelectedCategory(e.target.value || null)}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="" key="category-all">Todas as categorias</option>
-            {categories.map((category) => (
-              <option key={`category-option-${category._id || category.id}`} value={category._id?.toString() || category.id || 'Burguer'}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Lista de Categorias e Produtos */}
-      <div className="space-y-6">
-        {categories.map((category) => {
-          console.log('Renderizando categoria:', category)
-          
-          const categoryProducts = filteredProducts.filter(product => {
-            console.log('Comparando produto com categoria:', {
-              produto: product,
-              produtoCategoryId: product.categoryId,
-              categoriaId: category._id,
-              categoriaIdString: category._id?.toString(),
-              match: product.categoryId === category._id?.toString() || product.categoryId === category.id || product.categoryId === 'Burguer'
-            })
-            return product.categoryId === category._id?.toString() || product.categoryId === category.id || product.categoryId === 'Burguer'
-          })
-
-          if (selectedCategory && selectedCategory !== category._id?.toString() && selectedCategory !== category.id) {
-            return null
-          }
-
-          if (categoryProducts.length === 0 && searchTerm) {
-            return null
-          }
-
-          const isExpanded = expandedCategories.includes(category._id?.toString() || category.id)
-
-          return (
-            <div
-              key={`category-${category._id || category.id}`}
-              className="rounded-lg border border-gray-200 bg-white overflow-hidden"
+            <button
+              onClick={handleNewProduct}
+              className="flex items-center gap-2 rounded-lg bg-krato-500 px-4 py-2 text-sm font-medium text-white hover:bg-krato-600"
             >
-              {/* Cabeçalho da Categoria */}
-              <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => toggleCategory(category._id?.toString() || category.id)}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="h-5 w-5" />
-                      ) : (
-                        <ChevronDown className="h-5 w-5" />
-                      )}
-                    </button>
-                    <div>
-                      <h2 className="font-semibold text-gray-900">
-                        {category.name}
-                      </h2>
-                      {category.description && (
-                        <p className="text-sm text-gray-600">
-                          {category.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+              <Plus className="h-4 w-4" />
+              Novo Produto
+            </button>
+          </div>
+        </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEditCategory(category)}
-                      className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(category._id?.toString() || category.id)}
-                      className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+        {/* Filtros */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar produtos por nome ou descrição"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 pl-9 pr-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-krato-500"
+            />
+          </div>
 
-              {/* Lista de Produtos */}
-              {isExpanded && (
-                <div className="divide-y divide-gray-200">
-                  {categoryProducts.map((product) => (
-                    <div
-                      key={`product-${product.id}`}
-                      className="flex items-center gap-4 p-4 hover:bg-gray-50"
-                    >
-                      {/* Imagem do Produto */}
-                      <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg">
-                        {product.image ? (
-                          <Image
-                            src={product.image}
-                            alt={product.name}
-                            fill
-                            className="object-cover"
-                          />
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <select
+              value={selectedCategory || ''}
+              onChange={(e) => setSelectedCategory(e.target.value || null)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-krato-500 sm:w-auto"
+            >
+              <option value="" key="category-all">Todas as categorias</option>
+              {categories.map((category) => (
+                <option key={`category-option-${category._id || category.id}`} value={category._id?.toString() || category.id || 'Burguer'}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Lista de Categorias e Produtos */}
+        <div className="space-y-6">
+          {categories.map((category) => {
+            console.log('Renderizando categoria:', category)
+            
+            const categoryProducts = filteredProducts.filter(product => {
+              console.log('Comparando produto com categoria:', {
+                produto: product,
+                produtoCategoryId: product.categoryId,
+                categoriaId: category._id,
+                categoriaIdString: category._id?.toString(),
+                match: product.categoryId === category._id?.toString() || product.categoryId === category.id || product.categoryId === 'Burguer'
+              })
+              return product.categoryId === category._id?.toString() || product.categoryId === category.id || product.categoryId === 'Burguer'
+            })
+
+            if (selectedCategory && selectedCategory !== category._id?.toString() && selectedCategory !== category.id) {
+              return null
+            }
+
+            if (categoryProducts.length === 0 && searchTerm) {
+              return null
+            }
+
+            const isExpanded = expandedCategories.includes(category._id?.toString() || category.id)
+
+            return (
+              <div
+                key={`category-${category._id || category.id}`}
+                className="rounded-lg border border-gray-200 bg-white overflow-hidden"
+              >
+                {/* Cabeçalho da Categoria */}
+                <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => toggleCategory(category._id?.toString() || category.id)}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="h-5 w-5" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-gray-100">
-                            <Store className="h-8 w-8 text-gray-400" />
-                          </div>
+                          <ChevronDown className="h-5 w-5" />
+                        )}
+                      </button>
+                      <div>
+                        <h2 className="font-semibold text-gray-900">
+                          {category.name}
+                        </h2>
+                        {category.description && (
+                          <p className="text-sm text-gray-600">
+                            {category.description}
+                          </p>
                         )}
                       </div>
+                    </div>
 
-                      {/* Informações do Produto */}
-                      <div className="flex flex-1 items-center justify-between">
-                        <div className="space-y-1">
-                          <h3 className="font-medium text-gray-900">
-                            {product.name}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {product.description}
-                          </p>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1 text-sm text-gray-600">
-                              <DollarSign className="h-4 w-4" />
-                              {new Intl.NumberFormat('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL'
-                              }).format(product.price)}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditCategory(category)}
+                        className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category._id?.toString() || category.id)}
+                        className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lista de Produtos */}
+                {isExpanded && (
+                  <div className="divide-y divide-gray-200">
+                    {categoryProducts.map((product) => (
+                      <div
+                        key={`product-${product.id}`}
+                        className="flex items-start gap-6 px-8 py-6 hover:bg-gray-50"
+                      >
+                        {/* Imagem do Produto */}
+                        <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg">
+                          {product.image ? (
+                            <Image
+                              src={product.image}
+                              alt={product.name}
+                              fill
+                              sizes="80px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-gray-100">
+                              <Store className="h-8 w-8 text-gray-400" />
                             </div>
-                            {product.available ? (
-                              <span key={`available-${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
-                                <span className="h-1.5 w-1.5 rounded-full bg-green-700" />
-                                Disponível
-                              </span>
-                            ) : (
-                              <span key={`unavailable-${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700">
-                                <span className="h-1.5 w-1.5 rounded-full bg-red-700" />
-                                Indisponível
-                              </span>
-                            )}
-                            {product.featured && (
-                              <span key={`featured-${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-700">
-                                <Tag className="h-3 w-3" />
-                                Destaque
-                              </span>
-                            )}
+                          )}
+                        </div>
+
+                        {/* Informações do Produto */}
+                        <div className="flex flex-1 items-start justify-between">
+                          <div className="space-y-1">
+                            <h3 className="text-[15px] font-medium text-gray-900">
+                              {product.name}
+                            </h3>
+                            <p className="text-[13px] text-gray-600">
+                              {product.description}
+                            </p>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1 text-[13px] text-gray-600">
+                                <DollarSign className="h-4 w-4" />
+                                {new Intl.NumberFormat('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL'
+                                }).format(product.price)}
+                              </div>
+                              {product.available ? (
+                                <span key={`available-${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-krato-50 px-2 py-1 text-[11px] font-medium text-krato-700">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-krato-700" />
+                                  Disponível
+                                </span>
+                              ) : (
+                                <span key={`unavailable-${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-[11px] font-medium text-red-700">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-red-700" />
+                                  Indisponível
+                                </span>
+                              )}
+                              {product.featured && (
+                                <span key={`featured-${product.id}`} className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 text-[11px] font-medium text-yellow-700">
+                                  <Tag className="h-3 w-3" />
+                                  Destaque
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Ações do Produto */}
+                          <div className="flex flex-col sm:flex-row items-center gap-2">
+                            <button
+                              onClick={() => handleEditProduct(product)}
+                              className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
-
-                        {/* Ações do Produto */}
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditProduct(product)}
-                            className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProduct(product.id)}
-                            className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
 
-                  {categoryProducts.length === 0 && (
-                    <div key={`empty-${category._id || category.id}`} className="p-6 text-center text-sm text-gray-600">
-                      Nenhum produto encontrado nesta categoria.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+                    {categoryProducts.length === 0 && (
+                      <div key={`empty-${category._id || category.id}`} className="p-6 text-center text-sm text-gray-600">
+                        Nenhum produto encontrado nesta categoria.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Modais */}
+        <ProductFormDialog
+          key={`product-dialog-${selectedProduct?.id || 'new'}`}
+          open={isProductModalOpen}
+          onOpenChange={setIsProductModalOpen}
+          product={selectedProduct || undefined}
+          categories={categories}
+          onSubmit={handleSaveProduct}
+        />
+
+        <CategoryFormDialog
+          key={`category-dialog-${selectedCategoryToEdit?.id || 'new'}`}
+          open={isCategoryModalOpen}
+          onOpenChange={setIsCategoryModalOpen}
+          category={selectedCategoryToEdit || undefined}
+          onSubmit={handleSaveCategory}
+        />
       </div>
-
-      {/* Modais */}
-      <ProductFormDialog
-        key={`product-dialog-${selectedProduct?.id || 'new'}`}
-        open={isProductModalOpen}
-        onOpenChange={setIsProductModalOpen}
-        product={selectedProduct || undefined}
-        categories={categories}
-        onSubmit={handleSaveProduct}
-      />
-
-      <CategoryFormDialog
-        key={`category-dialog-${selectedCategoryToEdit?.id || 'new'}`}
-        open={isCategoryModalOpen}
-        onOpenChange={setIsCategoryModalOpen}
-        category={selectedCategoryToEdit || undefined}
-        onSubmit={handleSaveCategory}
-      />
     </div>
   )
 } 

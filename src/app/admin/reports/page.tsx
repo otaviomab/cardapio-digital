@@ -168,190 +168,192 @@ export default function ReportsPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-krato-500" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
-          <p className="text-gray-600">Acompanhe as métricas do seu negócio</p>
-        </div>
-
-        {/* Seletor de Período */}
-        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
-          <button
-            onClick={() => navigatePeriod('prev')}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          <div className="flex items-center gap-2 text-gray-900">
-            <Calendar className="h-5 w-5" />
-            <span className="font-medium">
-              {format(dateRange.startDate, "dd 'de' MMMM", { locale: ptBR })}
-              {' - '}
-              {format(dateRange.endDate, "dd 'de' MMMM", { locale: ptBR })}
-            </span>
+    <div className="min-h-screen w-full overflow-x-hidden pb-20">
+      <div className="flex flex-col gap-6 px-4 pt-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">Relatórios</h1>
+            <p className="text-gray-600">Acompanhe as métricas do seu negócio</p>
           </div>
 
-          <button
-            onClick={() => navigatePeriod('next')}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
-            disabled={dateRange.endDate >= new Date()}
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Cards de Métricas */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <div
-              key={stat.name}
-              className="rounded-lg border border-gray-200 bg-white p-6"
+          {/* Seletor de Período */}
+          <div className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white p-4 sm:w-auto">
+            <button
+              onClick={() => navigatePeriod('prev')}
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
             >
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-green-50 p-3">
-                  <Icon className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    {stat.name}
-                  </p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {stat.value}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">{stat.trend}</p>
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+
+            <div className="flex items-center gap-2 text-gray-900">
+              <Calendar className="h-5 w-5" />
+              <span className="font-medium">
+                {format(dateRange.startDate, "dd 'de' MMMM", { locale: ptBR })}
+                {' - '}
+                {format(dateRange.endDate, "dd 'de' MMMM", { locale: ptBR })}
+              </span>
+            </div>
+
+            <button
+              onClick={() => navigatePeriod('next')}
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              disabled={dateRange.endDate >= new Date()}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Cards de Métricas */}
+        <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {stats.map((stat) => {
+            const Icon = stat.icon
+            return (
+              <div
+                key={stat.name}
+                className="rounded-lg border border-gray-200 bg-white p-6"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="rounded-lg bg-krato-50 p-3">
+                    <Icon className="h-6 w-6 text-krato-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">
+                      {stat.name}
+                    </p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {stat.value}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">{stat.trend}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Produtos Mais Vendidos */}
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 px-6 py-4">
-          <h2 className="font-semibold text-gray-900">
-            Produtos Mais Vendidos
-          </h2>
+            )
+          })}
         </div>
-        <div className="divide-y divide-gray-200">
-          {reportData.bestSellingProducts.map((product, index) => (
-            <div
-              key={`${index}-${product.name}`}
-              className="flex items-center justify-between px-6 py-4"
-            >
-              <div className="flex items-center gap-4">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-sm font-medium text-gray-900">
-                  {index + 1}
-                </span>
-                <div>
-                  <p className="font-medium text-gray-900">{product.name}</p>
-                  <p className="text-sm text-gray-600">
-                    {product.quantity} unidades vendidas
+
+        {/* Produtos Mais Vendidos */}
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-6 py-4">
+            <h2 className="font-semibold text-gray-900">
+              Produtos Mais Vendidos
+            </h2>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {reportData.bestSellingProducts.map((product, index) => (
+              <div
+                key={`${index}-${product.name}`}
+                className="flex items-center justify-between p-6"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-krato-50">
+                    <Star className="h-6 w-6 text-krato-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">{product.name}</h3>
+                    <p className="text-sm text-gray-500">{product.quantity} unidades vendidas</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-gray-900">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL'
+                    }).format(product.revenue)}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL'
+                    }).format(product.revenue / product.quantity)} por unidade
                   </p>
                 </div>
               </div>
-              <p className="font-medium text-gray-900">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL'
-                }).format(product.revenue)}
-              </p>
-            </div>
-          ))}
-
-          {reportData.bestSellingProducts.length === 0 && (
-            <div className="p-6 text-center text-sm text-gray-600">
-              Nenhum produto vendido no período selecionado.
-            </div>
-          )}
+            ))}
+          </div>
         </div>
+
+        {/* Faturamento por Dia */}
+        {reportData.revenueByDay.length > 0 && (
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h2 className="font-semibold text-gray-900">
+                Faturamento por Dia
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-7 gap-4">
+                {reportData.revenueByDay.map((day) => {
+                  const maxValue = Math.max(...reportData.revenueByDay.map(d => d.value))
+                  const height = maxValue > 0 ? (day.value / maxValue) * 150 : 0
+                  
+                  return (
+                    <div key={day.date} className="flex flex-col items-center">
+                      <div className="relative h-[150px] w-full">
+                        <div
+                          className="absolute bottom-0 w-full rounded-t-lg bg-krato-100"
+                          style={{ height: `${height}px` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-gray-600">
+                        {format(new Date(day.date), 'EEE', { locale: ptBR })}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL'
+                        }).format(day.value)}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pedidos por Horário */}
+        {reportData.ordersByHour.length > 0 && (
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h2 className="font-semibold text-gray-900">
+                Pedidos por Horário
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-6 gap-4">
+                {reportData.ordersByHour.map((timeSlot) => {
+                  const maxQuantity = Math.max(...reportData.ordersByHour.map(t => t.quantity))
+                  const height = maxQuantity > 0 ? (timeSlot.quantity / maxQuantity) * 150 : 0
+                  
+                  return (
+                    <div key={timeSlot.hour} className="flex flex-col items-center">
+                      <div className="relative h-[150px] w-full">
+                        <div
+                          className="absolute bottom-0 w-full rounded-t-lg bg-krato-100"
+                          style={{ height: `${height}px` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-gray-600">
+                        {timeSlot.hour}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {timeSlot.quantity} pedidos
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Faturamento por Dia */}
-      {reportData.revenueByDay.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="font-semibold text-gray-900">
-              Faturamento por Dia
-            </h2>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-7 gap-4">
-              {reportData.revenueByDay.map((day) => {
-                const maxValue = Math.max(...reportData.revenueByDay.map(d => d.value))
-                const height = maxValue > 0 ? (day.value / maxValue) * 150 : 0
-                
-                return (
-                  <div key={day.date} className="flex flex-col items-center">
-                    <div className="relative h-[150px] w-full">
-                      <div
-                        className="absolute bottom-0 w-full rounded-t-lg bg-green-100"
-                        style={{ height: `${height}px` }}
-                      />
-                    </div>
-                    <p className="mt-2 text-sm font-medium text-gray-600">
-                      {format(new Date(day.date), 'EEE', { locale: ptBR })}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                      }).format(day.value)}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pedidos por Horário */}
-      {reportData.ordersByHour.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="font-semibold text-gray-900">
-              Pedidos por Horário
-            </h2>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-6 gap-4">
-              {reportData.ordersByHour.map((timeSlot) => {
-                const maxQuantity = Math.max(...reportData.ordersByHour.map(t => t.quantity))
-                const height = maxQuantity > 0 ? (timeSlot.quantity / maxQuantity) * 150 : 0
-                
-                return (
-                  <div key={timeSlot.hour} className="flex flex-col items-center">
-                    <div className="relative h-[150px] w-full">
-                      <div
-                        className="absolute bottom-0 w-full rounded-t-lg bg-green-100"
-                        style={{ height: `${height}px` }}
-                      />
-                    </div>
-                    <p className="mt-2 text-sm font-medium text-gray-600">
-                      {timeSlot.hour}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {timeSlot.quantity} pedidos
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 } 

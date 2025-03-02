@@ -38,13 +38,22 @@ export function ProductFormDialog({
       available: true,
       featured: false,
       image: '',
-      additions: []
+      additions: [],
+      isPizza: false,
+      allowHalfHalf: false
     }
   )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+
+    // Log para depuração
+    console.log('Enviando dados do produto:', {
+      ...formData,
+      isPizza: formData.isPizza,
+      allowHalfHalf: formData.allowHalfHalf
+    })
 
     try {
       await onSubmit(formData)
@@ -201,7 +210,7 @@ export function ProductFormDialog({
                       available: e.target.checked,
                     }))
                   }
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  className="h-4 w-4 rounded border-gray-300 text-krato-500 focus:ring-krato-500"
                 />
                 <span className="text-sm text-gray-900">Disponível</span>
               </label>
@@ -216,9 +225,25 @@ export function ProductFormDialog({
                       featured: e.target.checked,
                     }))
                   }
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  className="h-4 w-4 rounded border-gray-300 text-krato-500 focus:ring-krato-500"
                 />
                 <span className="text-sm text-gray-900">Destaque</span>
+              </label>
+              
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.allowHalfHalf || false}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      allowHalfHalf: e.target.checked,
+                      isPizza: e.target.checked ? true : (prev.isPizza || false)
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-krato-500 focus:ring-krato-500"
+                />
+                <span className="text-sm text-gray-900">Permite Meia a Meia</span>
               </label>
             </div>
           </div>
@@ -230,7 +255,7 @@ export function ProductFormDialog({
               <button
                 type="button"
                 onClick={handleAddAddition}
-                className="text-sm font-medium text-green-600 hover:text-green-700"
+                className="text-sm font-medium text-krato-500 hover:text-krato-600"
               >
                 Adicionar
               </button>
@@ -302,7 +327,7 @@ export function ProductFormDialog({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-krato-500 px-4 py-2 text-sm font-medium text-white hover:bg-krato-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? 'Salvando...' : 'Salvar'}
             </button>

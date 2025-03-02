@@ -11,6 +11,18 @@ export default {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        krato: {
+          50: '#fff4ed',
+          100: '#ffe6d5',
+          200: '#ffc8ab',
+          300: '#ffa175',
+          400: '#ff7a3d',
+          500: '#FE5F02', // Cor principal da Krato
+          600: '#ea4a00',
+          700: '#c23a00',
+          800: '#9b2f02',
+          900: '#7d2705',
+        }
       },
     },
   },

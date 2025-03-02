@@ -11,47 +11,65 @@ export type OrderStatus =
 
 export interface OrderStatusUpdate {
   status: OrderStatus
-  timestamp: Date
+  timestamp: string | Date
   message: string
 }
 
 export interface Order {
-  _id: string
+  _id?: string
   restaurantId: string
-  status: OrderStatus
-  orderType: 'delivery' | 'pickup'
   customer: {
     name: string
+    email: string
     phone: string
   }
+  items: {
+    productId: string
+    name: string
+    price: number
+    quantity: number
+    observations?: string
+  }[]
+  total: number
+  subtotal?: number
+  status: OrderStatus
+  statusUpdates?: OrderStatusUpdate[]
+  
+  // Campos para o tipo de pedido (compatibilidade)
+  orderType?: 'delivery' | 'pickup'
+  deliveryMethod?: 'delivery' | 'pickup'
+  
+  // Campos para endereço (compatibilidade)
   address?: {
-    cep: string
     street: string
     number: string
     complement?: string
     neighborhood: string
     city: string
     state: string
+    cep: string
   }
-  payment: {
-    method: string
-    change?: string
+  deliveryAddress?: {
+    street: string
+    number: string
+    complement?: string
+    neighborhood: string
+    city: string
+    state: string
+    zipCode: string
   }
-  items: {
-    id: string
-    name: string
-    price: number
-    quantity: number
-    observation?: string
-    additions: {
-      name: string
-      price: number
-    }[]
-  }[]
-  subtotal: number
-  deliveryFee?: number
-  total: number
-  statusUpdates: OrderStatusUpdate[]
-  createdAt: Date
-  updatedAt: Date
+  
+  paymentMethod: 'credit_card' | 'debit_card' | 'pix' | 'cash' | 'meal_voucher'
+  
+  // Campo para troco (quando o pagamento é em dinheiro)
+  change?: number
+  
+  // Campo para compatibilidade com estrutura de pagamento alternativa
+  payment?: {
+    method: 'credit_card' | 'debit_card' | 'pix' | 'cash' | 'meal_voucher'
+    change?: number
+  }
+  
+  createdAt: string
+  updatedAt: string
 } 

@@ -53,7 +53,7 @@ export function DeliveryZones({ zones, onChange }: DeliveryZonesProps) {
         <button
           type="button"
           onClick={handleAddZone}
-          className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+          className="flex items-center gap-2 rounded-lg bg-krato-500 px-3 py-2 text-sm font-medium text-white hover:bg-krato-600"
         >
           <Plus className="h-4 w-4" />
           Adicionar Zona
@@ -180,7 +180,7 @@ export function DeliveryZones({ zones, onChange }: DeliveryZonesProps) {
                     type="checkbox"
                     checked={zone.active}
                     onChange={(e) => handleZoneChange(zone.id, 'active', e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    className="h-4 w-4 rounded border-gray-300 text-krato-500 focus:ring-krato-500"
                   />
                   <span className="ml-2 text-sm text-gray-900">
                     Zona ativa

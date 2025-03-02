@@ -34,6 +34,14 @@ export function RestaurantContent({
   // Validação de horário de funcionamento
   const { isOpen, nextOpeningTime, currentSchedule, isLoading } = useRestaurantHours(restaurant.openingHours || [])
 
+  // Armazena o ID do restaurante no localStorage
+  useEffect(() => {
+    if (restaurant?.id) {
+      console.log('Armazenando restaurantId no localStorage:', restaurant.id)
+      localStorage.setItem('current_restaurant_id', restaurant.id)
+    }
+  }, [restaurant?.id])
+
   // Carrega os dados do cardápio se não foram fornecidos
   useEffect(() => {
     const loadData = async () => {
@@ -102,9 +110,15 @@ export function RestaurantContent({
     return () => observer.disconnect()
   }, [categories])
 
-  const selectedProductData = products.find(
-    (product) => product.id === selectedProduct
-  )
+  // Encontra o produto selecionado
+  const selectedProductData = products.find(p => p.id === selectedProduct) || products[0]
+
+  // Log para depuração
+  console.log('RestaurantContent - Dados do restaurante:', {
+    restaurantId: restaurant.id,
+    restaurantName: restaurant.name,
+    restaurantType: restaurant.restaurantType
+  })
 
   const handleAddToCart = () => {
     // Não permite adicionar ao carrinho se estiver fechado
@@ -189,7 +203,7 @@ export function RestaurantContent({
                         onClick={() => scrollToCategory(categoryId)}
                         className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors
                           ${activeCategory === categoryId
-                            ? 'border-green-600 bg-green-50 text-green-600'
+                            ? 'border-krato-500 bg-krato-50 text-krato-500'
                             : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50'
                           }`}
                       >
@@ -300,11 +314,13 @@ export function RestaurantContent({
       {selectedProductData && (
         <ProductModal
           product={selectedProductData}
+          products={products}
           open={!!selectedProduct}
           onOpenChange={(isOpen) => {
             setSelectedProduct(isOpen ? selectedProductData.id : null)
           }}
           onAddToCart={handleAddToCart}
+          restaurantType={restaurant.restaurantType}
         />
       )}
 

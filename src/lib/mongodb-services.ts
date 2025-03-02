@@ -3,6 +3,8 @@ import clientPromise from './mongodb'
 import { Category, Product } from '@/types/restaurant'
 import { Order } from '@/types/order'
 import { supabase } from '@/lib/supabase'
+import { emitToRestaurant } from './socket'
+import { connectToDatabase } from './mongodb'
 
 // Funções para Categorias
 export async function getCategories(restaurantId: string) {
@@ -212,6 +214,8 @@ export async function createProduct(product: Omit<Product, 'id'>) {
     available: product.available ?? true,
     featured: product.featured ?? false,
     additions: product.additions || [],
+    isPizza: product.isPizza ?? false,
+    allowHalfHalf: product.allowHalfHalf ?? false,
     createdAt: new Date()
   }
 
@@ -273,6 +277,8 @@ export async function updateProduct(id: string, product: Partial<Product>) {
         featured: updateData.featured ?? existingProduct.featured,
         additions: updateData.additions || existingProduct.additions,
         image: updateData.image ?? existingProduct.image,
+        isPizza: updateData.isPizza ?? existingProduct.isPizza ?? false,
+        allowHalfHalf: updateData.allowHalfHalf ?? existingProduct.allowHalfHalf ?? false,
         restaurantId,
         updatedAt: new Date()
       }
@@ -322,13 +328,19 @@ export async function deleteProduct(id: string) {
 
 // Funções para Pedidos
 export async function getOrders(restaurantId: string) {
-  const client = await clientPromise
-  const collection = client.db('cardapio_digital').collection('orders')
-  
-  return collection
-    .find({ restaurantId })
-    .sort({ createdAt: -1 })
-    .toArray()
+  try {
+    const { db } = await connectToDatabase()
+    const orders = await db
+      .collection('orders')
+      .find({ restaurantId })
+      .sort({ createdAt: -1 })
+      .toArray()
+
+    return orders
+  } catch (error) {
+    console.error('Erro ao buscar pedidos:', error)
+    throw new Error('Erro ao buscar pedidos')
+  }
 }
 
 export async function getOrder(id: string) {
@@ -360,61 +372,124 @@ export async function getOrder(id: string) {
   }
 }
 
-export async function createOrder(order: Omit<Order, 'id'>) {
-  const client = await clientPromise
-  const collection = client.db('cardapio_digital').collection('orders')
-  
-  console.log('Criando pedido com dados:', order)
-
-  const orderData = {
-    ...order,
-    createdAt: new Date(),
-    statusUpdates: [
-      {
-        status: 'pending',
-        timestamp: new Date(),
-        message: 'Pedido realizado'
-      }
-    ]
+export async function createOrder(order: Order) {
+  try {
+    const { db } = await connectToDatabase()
+    
+    // Adiciona data de criação e garante que orderType esteja definido
+    const orderWithTimestamp = {
+      ...order,
+      // Garante que orderType esteja definido (compatibilidade com deliveryMethod)
+      orderType: order.orderType || order.deliveryMethod || 'delivery',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    
+    const result = await db.collection('orders').insertOne(orderWithTimestamp)
+    
+    // Recupera o pedido completo com o ID gerado
+    const createdOrder = {
+      ...orderWithTimestamp,
+      _id: result.insertedId.toString()
+    }
+    
+    // Emite evento via Socket.IO para notificar sobre o novo pedido
+    emitToRestaurant(
+      `new-order-${order.restaurantId}`,
+      order.restaurantId,
+      createdOrder
+    )
+    
+    // Também emite no novo formato (sem sufixo)
+    emitToRestaurant(
+      'new-order',
+      order.restaurantId,
+      createdOrder
+    )
+    
+    return createdOrder
+  } catch (error) {
+    console.error('Erro ao criar pedido:', error)
+    throw new Error('Erro ao criar pedido')
   }
-  
-  const result = await collection.insertOne(orderData)
-  
-  // Normaliza o ID antes de retornar
-  const createdOrder = {
-    ...orderData,
-    id: result.insertedId.toString(),
-    _id: result.insertedId.toString() // Mantém _id como string para compatibilidade
-  }
-  
-  console.log('Pedido criado com sucesso:', createdOrder)
-  return createdOrder
 }
 
-export async function updateOrderStatus(id: string, status: string, message: string) {
-  const client = await clientPromise
-  const db = client.db('cardapio_digital')
-  const collection = db.collection('orders')
-
-  const result = await collection.updateOne(
-    { _id: new ObjectId(id) },
-    {
-      $set: { status },
-      $push: {
-        statusUpdates: {
-          status,
-          timestamp: new Date(),
-          message
-        }
-      }
+export async function updateOrderStatus(orderId: string, status: string, message?: string) {
+  try {
+    console.log('MongoDB Service: Iniciando atualização de status do pedido', {
+      orderId,
+      status,
+      message
+    })
+    
+    const { db } = await connectToDatabase()
+    
+    // Verifica se o ID é válido
+    let objectId;
+    try {
+      objectId = new ObjectId(orderId);
+      console.log('MongoDB Service: ID do pedido válido', orderId)
+    } catch (error) {
+      console.error('MongoDB Service: ID do pedido inválido', orderId)
+      throw new Error('ID do pedido inválido')
     }
-  )
-
-  if (!result.modifiedCount) {
-    throw new Error('Pedido não encontrado')
+    
+    // Atualiza o pedido
+    const updateResult = await db.collection('orders').updateOne(
+      { _id: objectId },
+      { 
+        $set: { 
+          status,
+          updatedAt: new Date().toISOString()
+        } 
+      }
+    )
+    
+    console.log('MongoDB Service: Resultado da atualização', {
+      orderId,
+      matchedCount: updateResult.matchedCount,
+      modifiedCount: updateResult.modifiedCount
+    })
+    
+    if (updateResult.matchedCount === 0) {
+      console.error('MongoDB Service: Pedido não encontrado', orderId)
+      throw new Error('Pedido não encontrado')
+    }
+    
+    // Busca o pedido atualizado para enviar via WebSocket
+    const updatedOrder = await db
+      .collection('orders')
+      .findOne({ _id: objectId })
+    
+    if (!updatedOrder) {
+      console.error('MongoDB Service: Pedido não encontrado após atualização', orderId)
+      throw new Error('Pedido não encontrado após atualização')
+    }
+    
+    console.log('MongoDB Service: Pedido atualizado com sucesso', {
+      orderId,
+      status,
+      restaurantId: updatedOrder.restaurantId
+    })
+    
+    // Emite evento via Socket.IO para notificar sobre a atualização do pedido
+    const emitResult = emitToRestaurant(
+      `order-updated-${updatedOrder.restaurantId}`,
+      updatedOrder.restaurantId,
+      updatedOrder
+    )
+    
+    console.log('MongoDB Service: Resultado da emissão do evento', {
+      event: `order-updated-${updatedOrder.restaurantId}`,
+      room: updatedOrder.restaurantId,
+      result: emitResult
+    })
+    
+    return updatedOrder
+  } catch (error) {
+    console.error('MongoDB Service: Erro ao atualizar status do pedido:', error)
+    throw error
   }
-
-  return result
 }
 
 // Funções para Relatórios

@@ -863,3 +863,175 @@ if (settingsError) {
 - Documentação do processo
 
 #desenvolvimento #bugfix #supabase #postgresql #json 
+
+# Log de Desenvolvimento - Cardápio Digital
+
+## Sessão [27/03/2024]
+### Iniciado: 14:00
+### Finalizado: 18:00
+
+#### Objetivos da Sessão:
+- Migrar sistema de polling para Socket.IO
+- Corrigir problemas na criação de pedidos
+- Resolver problemas de redirecionamento na área administrativa
+- Implementar logs de depuração
+
+#### Realizações:
+
+## Feature: Sistema de Pedidos em Tempo Real
+
+### 1. Migração Polling para Socket.IO
+#### Descrição Funcional
+Substituição do sistema de polling por comunicação em tempo real usando Socket.IO para notificações de pedidos.
+
+#### Dependências Adicionadas
+- socket.io-client
+- socket.io
+
+#### Estrutura do Código
+```javascript
+// server.js - Configuração do Socket.IO
+const server = http.createServer(app);
+const io = new Server(server);
+
+io.on('connection', (socket) => {
+  socket.on('join-restaurant', (restaurantId) => {
+    socket.join(restaurantId);
+    socket.emit('joined-restaurant', { success: true, room: restaurantId });
+  });
+});
+
+// src/hooks/useRealtimeOrders.ts - Hook de Pedidos em Tempo Real
+export function useRealtimeOrders(restaurantId: string) {
+  // Estados e configurações do Socket.IO
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [socket, setSocket] = useState<any>(null);
+  
+  useEffect(() => {
+    if (!restaurantId) return;
+    
+    const socketIo = io();
+    socketIo.on('connect', () => {
+      socketIo.emit('join-restaurant', restaurantId);
+    });
+    
+    // Listeners para novos pedidos
+    socketIo.on(`new-order-${restaurantId}`, (order: Order) => {
+      setOrders(prev => [order, ...prev]);
+      playNewOrder();
+    });
+  }, [restaurantId]);
+}
+```
+
+### 2. API MongoDB Unificada
+#### Descrição Funcional
+API centralizada para operações com MongoDB, incluindo CRUD de pedidos.
+
+#### Estrutura
+```typescript
+// src/app/api/mongodb/route.ts
+export async function POST(request: Request) {
+  const { action } = await request.json();
+  
+  switch (action) {
+    case 'createOrder':
+      return await createOrderHandler(data);
+    case 'updateOrder':
+      return await updateOrderHandler(data);
+  }
+}
+
+// src/lib/mongodb-services.ts
+export async function createOrder(orderData: Order) {
+  const db = await connectToDatabase();
+  const result = await db.collection('orders').insertOne(orderData);
+  return { success: true, orderId: result.insertedId };
+}
+```
+
+### 3. Correções de Problemas
+
+#### Problema #1: Criação de Pedidos
+**Descrição:** Pedidos não estavam sendo criados devido a problemas com `restaurantId`
+**Solução:** Implementação de ID fixo para o restaurante demo
+```typescript
+const orderData = {
+  restaurantId: 'e0dba73b-0870-4b0d-8026-7341db950c16',
+  // ...outros dados
+};
+```
+
+#### Problema #2: Redirecionamento na Área Admin
+**Descrição:** Página de pedidos redirecionando incorretamente para dashboard
+**Solução:** Implementação de estado de loading e melhoria na lógica de autenticação
+```typescript
+// src/app/admin/layout.tsx
+const [isLoading, setIsLoading] = useState(true);
+
+useEffect(() => {
+  if (isMounted && !isLoading && !isLoggedIn && 
+      pathname !== '/admin/login') {
+    router.push('/admin/login');
+  }
+}, [isLoggedIn, pathname, isMounted, isLoading]);
+```
+
+### 4. Sistema de Logs
+#### Descrição Funcional
+Implementação de logs detalhados para depuração em diferentes partes do sistema.
+
+#### Estrutura
+```typescript
+// useRealtimeOrders
+console.log('useRealtimeOrders: Iniciando carregamento de pedidos');
+
+// Layout Admin
+console.log('Layout: Estado de autenticação', {
+  isLoggedIn,
+  isLoading,
+  pathname
+});
+
+// Página de Pedidos
+console.log('OrdersPage: Estado atual', {
+  ordersCount: orders.length,
+  loading
+});
+```
+
+### Melhorias de UX
+
+#### 1. Indicadores de Loading
+```tsx
+if (loading) {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="animate-spin rounded-full border-4 border-t-[#FCCD01]" />
+    </div>
+  );
+}
+```
+
+#### 2. Notificações de Pedidos
+- Som de notificação para novos pedidos
+- Notificações visuais na interface
+- Atualização em tempo real da lista
+
+### Impactos no Design System
+- Adição de novos componentes de loading
+- Padronização de notificações
+- Consistência nas cores e animações
+
+### TODO List
+- [ ] Implementar reconexão automática do Socket.IO
+- [ ] Adicionar testes para o sistema de pedidos
+- [ ] Melhorar tratamento de erros de rede
+- [ ] Implementar cache offline
+
+### Referências
+- [Socket.IO Documentation](https://socket.io/docs/v4/)
+- [Next.js API Routes](https://nextjs.org/docs/api-routes/introduction)
+- [MongoDB Node.js Driver](https://mongodb.github.io/node-mongodb-native/)
+
+#realtime #socket-io #mongodb #nextjs #typescript 

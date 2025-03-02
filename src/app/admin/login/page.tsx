@@ -22,6 +22,17 @@ export default function AdminLogin() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    
+    console.log('Iniciando processo de login...')
+
+    // Adiciona um timeout de segurança para garantir que o loading seja desativado
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.log('Timeout de segurança ativado: desativando estado de loading após 8 segundos')
+        setLoading(false)
+        setError('O login demorou mais do que o esperado. Por favor, tente novamente.')
+      }
+    }, 8000) // 8 segundos de timeout
 
     try {
       console.log('Tentando fazer login...')
@@ -41,13 +52,153 @@ export default function AdminLogin() {
         }
       }
 
-      console.log('Login bem sucedido:', data)
-      router.push('/admin/dashboard')
-      router.refresh()
+      console.log('Login bem sucedido:', {
+        userId: data.user?.id,
+        email: data.user?.email,
+        isInitialSetup: data.user?.user_metadata?.initial_setup === false
+      })
+      
+      // Verifica se é o primeiro login após confirmação de email
+      const isInitialSetup = data.user?.user_metadata?.initial_setup === false
+      
+      if (isInitialSetup) {
+        console.log('Primeiro login após confirmação de email, verificando configurações existentes')
+        
+        try {
+          // Aguarda um pequeno intervalo para garantir que o token de autenticação seja processado
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
+          // Verifica se já existem configurações para este usuário
+          const { data: existingSettings, error: settingsError } = await supabase
+            .from('restaurant_settings')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .single()
+          
+          // Se já existem configurações, atualiza os metadados do usuário e pula a criação
+          if (!settingsError && existingSettings) {
+            console.log('Configurações já existem para este usuário, atualizando metadados')
+            
+            // Atualiza os metadados do usuário para indicar que a configuração inicial foi concluída
+            await supabase.auth.updateUser({
+              data: {
+                pending_settings: null,
+                initial_setup: true
+              }
+            })
+            
+            console.log('Metadados atualizados com sucesso')
+          } else {
+            console.log('Nenhuma configuração existente encontrada, prosseguindo com a criação')
+            
+            // Obtém o token da sessão atual para incluir no cabeçalho da requisição
+            const { data: sessionData } = await supabase.auth.getSession()
+            const accessToken = sessionData?.session?.access_token
+            
+            if (!accessToken) {
+              console.error('Token de acesso não disponível')
+              throw new Error('Erro de autenticação. Por favor, tente fazer login novamente.')
+            }
+            
+            // Envia os dados do usuário junto com o token para a API
+            const setupResponse = await fetch('/api/setup-restaurant', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+              },
+              body: JSON.stringify({
+                userId: data.user.id,
+                email: data.user.email,
+                userMetadata: data.user.user_metadata
+              })
+            })
+            
+            if (!setupResponse.ok) {
+              const errorText = await setupResponse.text()
+              console.error('Erro na configuração inicial:', errorText)
+              
+              // Se o erro for de autenticação, tenta novamente após um intervalo maior
+              if (setupResponse.status === 401) {
+                console.log('Erro de autenticação, tentando novamente em 2 segundos...')
+                
+                // Aguarda mais tempo e tenta novamente
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                
+                // Obtém o token novamente para garantir que está atualizado
+                const { data: refreshedSession } = await supabase.auth.getSession()
+                const refreshedToken = refreshedSession?.session?.access_token
+                
+                if (!refreshedToken) {
+                  throw new Error('Não foi possível obter o token de autenticação')
+                }
+                
+                const retryResponse = await fetch('/api/setup-restaurant', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${refreshedToken}`
+                  },
+                  body: JSON.stringify({
+                    userId: data.user.id,
+                    email: data.user.email,
+                    userMetadata: data.user.user_metadata
+                  })
+                })
+                
+                if (!retryResponse.ok) {
+                  // Se o erro for que as configurações já existem, não é um problema crítico
+                  const retryErrorText = await retryResponse.text()
+                  if (retryResponse.status === 400 && retryErrorText.includes('Configurações já existem')) {
+                    console.log('Configurações já existem, continuando com o login')
+                  } else {
+                    console.error('Falha na segunda tentativa de configuração:', retryErrorText)
+                  }
+                } else {
+                  console.log('Configuração inicial concluída com sucesso na segunda tentativa')
+                }
+              } else if (setupResponse.status === 400 && errorText.includes('Configurações já existem')) {
+                // Se o erro for que as configurações já existem, não é um problema crítico
+                console.log('Configurações já existem, continuando com o login')
+              }
+            } else {
+              console.log('Configuração inicial concluída com sucesso')
+            }
+          }
+        } catch (setupError) {
+          console.error('Erro ao configurar restaurante:', setupError)
+          // Continua com o login mesmo se houver erro na configuração
+        }
+      }
+      
+      // Limpa o timeout de segurança antes de redirecionar
+      clearTimeout(safetyTimeout)
+      
+      console.log('Redirecionando para o dashboard...')
+      
+      // Abordagem mais robusta para o redirecionamento
+      try {
+        // Primeiro, tenta usar o router.push
+        router.push('/admin/dashboard')
+        
+        // Como fallback, após um pequeno delay, tenta o redirecionamento via window.location
+        setTimeout(() => {
+          if (document.location.pathname !== '/admin/dashboard') {
+            console.log('Fallback: redirecionando via window.location')
+            window.location.href = '/admin/dashboard'
+          }
+        }, 1000)
+      } catch (redirectError) {
+        console.error('Erro ao redirecionar:', redirectError)
+        // Se falhar, usa o método mais direto
+        window.location.href = '/admin/dashboard'
+      }
     } catch (err: any) {
       console.error('Erro capturado:', err)
       setError(err.message)
     } finally {
+      // Limpa o timeout de segurança
+      clearTimeout(safetyTimeout)
       setLoading(false)
     }
   }
@@ -78,12 +229,10 @@ export default function AdminLogin() {
         {/* Logo e Cabeçalho */}
         <div className="text-center">
           <div className="mb-4 flex justify-center">
-            <Image
-              src="/images/logotipo.png"
+            <img
+              src="/images/logotipo-new2.png"
               alt="Logo"
-              width={180}
-              height={48}
-              className="h-12 w-auto"
+              className="h-auto w-[180px]"
             />
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-zinc-900">

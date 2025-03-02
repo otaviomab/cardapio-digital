@@ -42,7 +42,7 @@ INSERT INTO restaurant_settings (
   'Restaurante Demo',
   'O melhor restaurante da cidade',
   'restaurante-demo',
-  '/images/logotipo.png',
+  '/images/logotipo-new2.png',
   '/images/hamburguer.png',
   '{
     "street": "Rua das Flores",

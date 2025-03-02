@@ -6,7 +6,6 @@ import { useSupabase } from '@/contexts/SupabaseContext'
 import { Button } from '@/components/ui/button'
 import { AlertDialog } from '@/components/alert-dialog'
 import { Mail, Lock, User, Building2, Loader2, ArrowLeft, Phone } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
 
 export default function AdminSignup() {
@@ -65,9 +64,9 @@ export default function AdminSignup() {
       }
 
       // Validação de telefone
-      const phoneRegex = /^\(\d{2}\) \d{5}-\d{4}$/
+      const phoneRegex = /^\(\d{2}\) \d{4,5}-\d{4}$/
       if (!phoneRegex.test(formData.phone)) {
-        throw new Error('Por favor, insira um telefone válido no formato (99) 99999-9999')
+        throw new Error('Por favor, insira um telefone válido no formato (99) 99999-9999 ou (99) 9999-9999')
       }
 
       console.log('Iniciando criação do usuário...')
@@ -115,7 +114,8 @@ export default function AdminSignup() {
               contact: {
                 name: formData.name,
                 email: formData.email,
-                phone: formData.phone
+                phone: formData.phone,
+                whatsapp: formData.phone // Adicionando WhatsApp igual ao telefone por padrão
               }
             }
           }
@@ -166,8 +166,9 @@ export default function AdminSignup() {
     
     if (value.length <= 11) {
       // Formata o número conforme vai digitando
-      value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
-      value = value.replace(/(\d)(\d{4})$/, '$1-$2')
+      value = value.replace(/^(\d{2})(\d)/, '($1) $2')
+      // Se tiver mais de 6 dígitos (DDD + 4 números), coloca o hífen
+      value = value.length > 6 ? value.replace(/(\d{4,5})(\d{4})$/, '$1-$2') : value
       
       setFormData(prev => ({
         ...prev,
@@ -182,12 +183,10 @@ export default function AdminSignup() {
         {/* Logo e Cabeçalho */}
         <div className="text-center">
           <div className="mb-4 flex justify-center">
-            <Image
-              src="/images/logotipo.png"
+            <img
+              src="/images/logotipo-new2.png"
               alt="Logo"
-              width={180}
-              height={48}
-              className="h-12 w-auto"
+              className="h-auto w-[180px]"
             />
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-zinc-900">

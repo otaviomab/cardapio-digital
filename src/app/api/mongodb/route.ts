@@ -46,7 +46,9 @@ export async function GET(request: NextRequest) {
         if (!restaurantIdForOrders) {
           return NextResponse.json({ error: 'restaurantId é obrigatório' }, { status: 400 })
         }
+        console.log('API: Buscando pedidos para restaurantId:', restaurantIdForOrders)
         const orders = await getOrders(restaurantIdForOrders)
+        console.log(`API: ${orders.length} pedidos encontrados`)
         return NextResponse.json(orders)
 
       case 'getOrder':
@@ -144,7 +146,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
 
       case 'createProduct':
+        console.log('API: Criando produto com dados:', body)
         const newProduct = await createProduct(body)
+        console.log('API: Produto criado com sucesso:', newProduct)
         return NextResponse.json(newProduct)
 
       case 'updateProduct':
@@ -161,8 +165,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(newOrder)
 
       case 'updateOrderStatus':
-        await updateOrderStatus(body.id, body.status, body.message)
-        return NextResponse.json({ success: true })
+        const { status, message } = body
+        console.log('API: Atualizando status do pedido', {
+          id,
+          status,
+          message
+        })
+        try {
+          const updatedOrder = await updateOrderStatus(id, status, message)
+          console.log('API: Status do pedido atualizado com sucesso', {
+            id,
+            status,
+            updatedOrder
+          })
+          return NextResponse.json({ success: true, order: updatedOrder })
+        } catch (error) {
+          console.error('API: Erro ao atualizar status do pedido:', error)
+          return NextResponse.json(
+            { error: 'Erro ao atualizar status do pedido', details: error instanceof Error ? error.message : String(error) },
+            { status: 500 }
+          )
+        }
 
       case 'getOrderStats': {
         const { restaurantId, startDate, endDate } = body

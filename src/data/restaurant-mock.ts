@@ -5,7 +5,7 @@ export const restaurantMock: Restaurant = {
   slug: 'restaurante-demo',
   name: 'Restaurante Demo',
   description: 'O melhor restaurante da cidade',
-  logo: '/images/logotipo.png',
+  logo: '/images/logotipo-new2.png',
   coverImage: '/images/hamburguer.png',
   address: {
     street: 'Rua das Flores',

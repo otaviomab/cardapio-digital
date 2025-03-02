@@ -28,4 +28,11 @@ if (process.env.NODE_ENV === 'development') {
   clientPromise = client.connect()
 }
 
+// Função para conectar ao banco de dados
+export async function connectToDatabase() {
+  const client = await clientPromise
+  const db = client.db('cardapio_digital')
+  return { client, db }
+}
+
 export default clientPromise 

@@ -12,6 +12,10 @@ export interface Restaurant {
     city: string
     state: string
     zipCode: string
+    coordinates?: {
+      lat: number
+      lng: number
+    }
   }
   contact: {
     phone: string
@@ -19,22 +23,36 @@ export interface Restaurant {
     email: string
   }
   openingHours: {
-    days: string
-    hours: string
+    days: string[]
+    start: string
+    end: string
+    enabled: boolean
   }[]
   deliveryInfo: {
     minimumOrder: number
     deliveryTime: string
-    deliveryFee: number
     paymentMethods: string[]
+    zones: {
+      name: string
+      minDistance: number
+      maxDistance: number
+      fee: number
+    }[]
   }
+  restaurantType: RestaurantType
+}
+
+export enum RestaurantType {
+  RESTAURANT = 'restaurant',
+  PIZZARIA = 'pizzaria',
+  HAMBURGUERIA = 'hamburgueria',
+  CAFETERIA = 'cafeteria'
 }
 
 export interface Category {
   id: string
   name: string
-  description?: string
-  order: number
+  active: boolean
 }
 
 export interface Product {
@@ -43,15 +61,40 @@ export interface Product {
   description: string
   price: number
   image: string
-  categoryId: string
-  available: boolean
-  featured: boolean
+  category: string
+  active: boolean
   additions?: Addition[]
+  isPizza?: boolean
+  allowHalfHalf?: boolean
 }
 
 export interface Addition {
   id: string
   name: string
   price: number
-  available: boolean
+  active: boolean
+  selected?: boolean
+}
+
+// Nova interface para representar produtos no carrinho com opção de meia-pizza
+export interface CartItem {
+  id: string
+  productId: string
+  name: string
+  price: number
+  quantity: number
+  observation?: string
+  additions?: Addition[]
+  halfHalf?: {
+    firstHalf: {
+      productId: string
+      name: string
+      price: number
+    },
+    secondHalf: {
+      productId: string
+      name: string
+      price: number
+    }
+  }
 } 

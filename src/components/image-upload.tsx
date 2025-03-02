@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, X } from 'lucide-react'
+import { Upload, X, AlertTriangle } from 'lucide-react'
 import Image from 'next/image'
 import { useSupabase } from '@/contexts/SupabaseContext'
 
@@ -31,10 +31,14 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const { supabase } = useSupabase()
   const [isUploading, setIsUploading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (!file) return
+
+    // Limpa qualquer erro anterior
+    setErrorMessage(null)
 
     try {
       setIsUploading(true)
@@ -103,8 +107,10 @@ export function ImageUpload({
     } catch (error) {
       console.error('Erro no upload:', error)
       if (error instanceof Error) {
+        setErrorMessage(error.message)
         onError?.(error.message)
       } else {
+        setErrorMessage('Erro ao fazer upload da imagem')
         onError?.('Erro ao fazer upload da imagem')
       }
     } finally {
@@ -125,14 +131,52 @@ export function ImageUpload({
     onChange('')
   }
 
+  const handleCloseError = () => {
+    setErrorMessage(null)
+  }
+
   return (
     <div className="space-y-2">
+      {/* Alerta de erro */}
+      {errorMessage && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md animate-in fade-in zoom-in rounded-lg border border-red-200 bg-white p-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-red-100 p-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium text-gray-900">Erro no upload da imagem</h3>
+                <div className="mt-1 whitespace-pre-line text-sm text-gray-600">
+                  {errorMessage}
+                </div>
+              </div>
+              <button
+                onClick={handleCloseError}
+                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={handleCloseError}
+                className="rounded-lg bg-krato-500 px-4 py-2 text-sm font-medium text-white hover:bg-krato-600"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {value ? (
         <div className={`relative aspect-video ${maxWidth} overflow-hidden rounded-lg border border-gray-200`}>
           <Image
             src={value}
             alt="Preview"
             fill
+            sizes="80px"
             className="object-cover"
           />
           <button
@@ -148,7 +192,7 @@ export function ImageUpload({
           {...getRootProps()}
           className={`flex aspect-video ${maxWidth} cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${
             isDragActive
-              ? 'border-green-500 bg-green-50'
+              ? 'border-krato-500 bg-krato-50'
               : 'border-gray-300 hover:border-gray-400'
           }`}
         >

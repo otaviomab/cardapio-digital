@@ -10,13 +10,15 @@ import {
   Truck,
   Search,
   Filter,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSupabase } from '@/contexts/SupabaseContext'
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders'
 import { OrderNotification } from '@/components/order-notification'
 import { Order } from '@/types/order'
+import { useRouter } from 'next/navigation'
 
 // Tipos de status possíveis
 const orderStatuses = {
@@ -38,26 +40,109 @@ const paymentMethods = {
   credit_card: 'Cartão de Crédito',
   debit_card: 'Cartão de Débito',
   pix: 'PIX',
-  cash: 'Dinheiro'
+  cash: 'Dinheiro',
+  meal_voucher: 'Vale-Refeição',
+  // Compatibilidade com formatos antigos
+  credit: 'Cartão de Crédito',
+  debit: 'Cartão de Débito',
+  wallet: 'Vale-Refeição'
 } as const
 
 export default function OrdersPage() {
+  const router = useRouter()
   const { supabase } = useSupabase()
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState('all')
   const [restaurantId, setRestaurantId] = useState<string | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [dateFilter, setDateFilter] = useState('today')
+  const [isMounted, setIsMounted] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  
+  // Inicializa o hook apenas quando tivermos o restaurantId
+  const { orders, loading, updateOrder } = useRealtimeOrders(restaurantId || '')
 
-  // Busca o ID do restaurante do usuário logado
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setRestaurantId(user?.id || 'e0dba73b-0870-4b0d-8026-7341db950c16') // ID fixo para desenvolvimento
+  // Função para atualizar o status do pedido
+  const handleUpdateStatus = async (status: 'confirmed' | 'rejected') => {
+    if (!selectedOrder) return
+
+    try {
+      const response = await fetch(`/api/mongodb?action=updateOrderStatus&id=${selectedOrder._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status,
+          message: status === 'confirmed' 
+            ? 'Pedido confirmado pelo restaurante'
+            : 'Pedido recusado pelo restaurante',
+          statusUpdates: selectedOrder.statusUpdates || [{
+            status: selectedOrder.status,
+            message: 'Status inicial do pedido',
+            timestamp: selectedOrder.createdAt
+          }]
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar status')
+      }
+
+      if (status === 'confirmed') {
+        router.push(`/admin/orders/${selectedOrder._id}`)
+      }
+    } catch (error) {
+      console.error('OrdersPage: Erro ao atualizar pedido:', error)
+      alert('Erro ao atualizar pedido. Tente novamente.')
     }
+  }
+
+  // Marca o componente como montado
+  useEffect(() => {
+    setIsMounted(true)
+    
+    // Verifica se o usuário está logado e busca o ID do restaurante
+    const getUser = async () => {
+      try {
+        setIsLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          console.log('OrdersPage: Usuário autenticado', { userId: user.id })
+          setIsLoggedIn(true)
+          setRestaurantId(user.id)
+        } else {
+          console.log('OrdersPage: Usuário não autenticado')
+          setIsLoggedIn(false)
+          setRestaurantId(null)
+          // Não redirecionamos aqui, deixamos o layout fazer isso
+        }
+      } catch (error) {
+        console.error('OrdersPage: Erro ao verificar usuário', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
     getUser()
   }, [supabase])
 
-  // Usa o hook de pedidos em tempo real
-  const { orders, loading, updateOrder } = useRealtimeOrders(restaurantId || '')
+  // Adicione um console.log para depuração
+  useEffect(() => {
+    if (isMounted) {
+      console.log('OrdersPage: Estado da página de pedidos:', {
+        isLoggedIn,
+        restaurantId,
+        isMounted,
+        ordersCount: orders.length,
+        loading,
+        isLoading,
+        pathname: window.location.pathname
+      })
+    }
+  }, [isLoggedIn, restaurantId, isMounted, orders.length, loading, isLoading])
 
   // Função para gerar o número do pedido baseado na data e ordem de criação
   const generateOrderNumber = (order: Order) => {
@@ -85,7 +170,7 @@ export default function OrdersPage() {
   const filteredOrders = orders.filter(order => {
     // Se não houver termo de busca, só aplica o filtro de status
     if (!searchTerm) {
-      return !statusFilter || order.status === statusFilter
+      return statusFilter === 'all' || order.status === statusFilter
     }
 
     // Verifica se é uma busca por número de pedido (apenas números)
@@ -137,22 +222,22 @@ export default function OrdersPage() {
 
       // Verifica se o número buscado está contido no telefone do cliente
       if (customerPhone.includes(searchTermNumbers)) {
-        return !statusFilter || order.status === statusFilter
+        return statusFilter === 'all' || order.status === statusFilter
       }
     }
 
     // Prepara os campos de busca normalizados
     const searchFields = [
       normalizeText(order.customer.name || ''),           // Nome do cliente
-      normalizeText(order.address?.street || ''),         // Rua
-      normalizeText(order.address?.number || ''),         // Número
-      normalizeText(order.address?.neighborhood || ''),   // Bairro
-      normalizeText(order.address?.city || ''),          // Cidade
-      normalizeText(order.address?.state || ''),         // Estado
-      normalizeText(order.address?.complement || ''),     // Complemento
-      normalizeText(order.payment.method || ''),         // Método de pagamento
+      normalizeText(order.deliveryAddress?.street || ''),         // Rua
+      normalizeText(order.deliveryAddress?.number || ''),         // Número
+      normalizeText(order.deliveryAddress?.neighborhood || ''),   // Bairro
+      normalizeText(order.deliveryAddress?.city || ''),          // Cidade
+      normalizeText(order.deliveryAddress?.state || ''),         // Estado
+      normalizeText(order.deliveryAddress?.complement || ''),     // Complemento
+      normalizeText(order.paymentMethod || order.payment?.method || ''),         // Método de pagamento
       order._id.toString(),                              // ID interno
-      order.orderType === 'delivery' ? 'entrega' : 'retirada', // Tipo de pedido
+      order.deliveryMethod === 'delivery' ? 'entrega' : 'retirada', // Tipo de pedido
       normalizePhone(order.customer.phone || '')         // Adiciona o telefone normalizado aos campos de busca
     ].filter(Boolean)
 
@@ -162,51 +247,84 @@ export default function OrdersPage() {
     )
 
     // Aplica o filtro de status se estiver selecionado
-    return matchesSearch && (!statusFilter || order.status === statusFilter)
+    return matchesSearch && (statusFilter === 'all' || order.status === statusFilter)
   })
+
+  // Função para lidar com o clique em "Ver detalhes"
+  const handleViewDetails = (order: Order) => {
+    if (order.status === 'pending') {
+      setSelectedOrder(order)
+    } else {
+      router.push(`/admin/orders/${order._id}`)
+    }
+  }
 
   if (!restaurantId || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-krato-500" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-        <p className="text-gray-600">Gerencie os pedidos do seu restaurante</p>
-      </div>
+    <div className="space-y-6 pb-20">
+      {selectedOrder && (
+        <OrderNotification
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          onAccept={async () => {
+            await handleUpdateStatus('confirmed')
+            setSelectedOrder(null)
+          }}
+          onReject={async () => {
+            await handleUpdateStatus('rejected')
+            setSelectedOrder(null)
+          }}
+        />
+      )}
 
-      {/* Filtros */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por cliente, endereço, telefone ou número do pedido..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
+      {/* Header */}
+      <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 lg:text-2xl">Pedidos</h1>
+            <p className="text-gray-600">Gerencie os pedidos do seu restaurante</p>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-400" />
-          <select
-            value={statusFilter || ''}
-            onChange={(e) => setStatusFilter(e.target.value || null)}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="">Todos os status</option>
-            {Object.entries(orderStatuses).map(([value, { label }]) => (
-              <option key={`status-${value}`} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
+              <Filter className="h-5 w-5 text-gray-500" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-transparent text-sm text-gray-600 focus:outline-none"
+              >
+                <option value="all">Todos os status</option>
+                <option value="pending">Pendente</option>
+                <option value="preparing">Preparando</option>
+                <option value="ready">Pronto</option>
+                <option value="delivered">Entregue</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
+              <Calendar className="h-5 w-5 text-gray-500" />
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="bg-transparent text-sm text-gray-600 focus:outline-none"
+              >
+                <option value="today">Hoje</option>
+                <option value="yesterday">Ontem</option>
+                <option value="last7days">Últimos 7 dias</option>
+                <option value="last30days">Últimos 30 dias</option>
+                <option value="all">Todos</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -285,16 +403,12 @@ export default function OrdersPage() {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <span className="text-sm text-gray-900">
-                        {order.orderType === 'delivery' ? 'Entrega' : 'Retirada'}
+                        {order.deliveryMethod === 'delivery' ? 'Entrega' : 'Retirada'}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <span className="text-sm text-gray-900">
-                        {order.payment.method === 'credit_card' ? 'Cartão de Crédito' : 
-                         order.payment.method === 'debit_card' ? 'Cartão de Débito' :
-                         order.payment.method === 'pix' ? 'PIX' :
-                         order.payment.method === 'cash' ? 'Dinheiro' :
-                         'Não definido'}
+                        {paymentMethods[(order.paymentMethod || order.payment?.method) as keyof typeof paymentMethods] || 'Não definido'}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
@@ -311,12 +425,12 @@ export default function OrdersPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
-                      <Link
-                        href={`/admin/orders/${order._id}`}
+                      <button
+                        onClick={() => handleViewDetails(order)}
                         className="text-sm font-medium text-green-600 hover:text-green-700"
                       >
                         Ver detalhes
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 )

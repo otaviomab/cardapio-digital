@@ -21,8 +21,8 @@ export function AddToCartDialog({ open, onOpenChange }: AddToCartDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-md space-y-4 p-8">
         <DialogHeader>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-            <Check className="h-6 w-6 text-green-600" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-krato-100">
+            <Check className="h-6 w-6 text-krato-500" />
           </div>
           <DialogTitle className="text-xl font-medium text-zinc-900">
             Item adicionado ao carrinho
@@ -46,7 +46,7 @@ export function AddToCartDialog({ open, onOpenChange }: AddToCartDialogProps) {
               router.push('/cart')
               onOpenChange(false)
             }}
-            className="rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-green-700"
+            className="rounded-lg bg-krato-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-krato-600"
           >
             Ir para o carrinho
           </button>

@@ -114,13 +114,23 @@ export async function getProducts(restaurantId: string) {
 }
 
 export async function createProduct(restaurantId: string, product: Omit<Product, 'id'>) {
+  console.log('Chamando API para criar produto:', { restaurantId, product })
+  
   const response = await fetch(`${getBaseUrl()}/api/mongodb?action=createProduct&restaurantId=${restaurantId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(product)
   })
-  if (!response.ok) throw new Error('Erro ao criar produto')
-  return response.json()
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
+    console.error('Erro ao criar produto:', error)
+    throw new Error(error.message || 'Erro ao criar produto')
+  }
+  
+  const result = await response.json()
+  console.log('Produto criado com sucesso:', result)
+  return result
 }
 
 export async function updateProduct(id: string, product: Partial<Product>) {

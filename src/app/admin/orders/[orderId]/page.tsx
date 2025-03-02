@@ -17,8 +17,14 @@ import {
   ArrowLeft,
   User,
   Phone,
-  CreditCard
+  CreditCard,
+  QrCode,
+  Banknote,
+  Wallet
 } from 'lucide-react'
+import { formatCurrency } from '@/lib/utils'
+import { OrderStatus } from '@/components/order-status'
+import { ThermalPrintButton } from '@/components/thermal-print-button'
 
 interface OrderDetailsPageProps {
   params: Promise<{
@@ -52,42 +58,57 @@ const statusMessages = {
 
 const statusColors = {
   pending: 'text-yellow-500 bg-yellow-50',
-  confirmed: 'text-blue-500 bg-blue-50',
+  confirmed: 'text-krato-500 bg-krato-50',
   rejected: 'text-red-500 bg-red-50',
-  preparing: 'text-orange-500 bg-orange-50',
-  ready: 'text-green-500 bg-green-50',
+  preparing: 'text-krato-500 bg-krato-50',
+  ready: 'text-krato-500 bg-krato-50',
   out_for_delivery: 'text-purple-500 bg-purple-50',
-  delivered: 'text-green-500 bg-green-50',
-  completed: 'text-green-500 bg-green-50',
+  delivered: 'text-krato-500 bg-krato-50',
+  completed: 'text-krato-500 bg-krato-50',
   cancelled: 'text-red-500 bg-red-50',
 }
 
 const paymentMethods = {
   credit_card: {
     label: 'Cartão de Crédito',
-    icon: CreditCard,
-    color: 'text-blue-600'
+    icon: <CreditCard className="h-4 w-4 mr-1" />,
+    color: 'text-green-500'
   },
   debit_card: {
     label: 'Cartão de Débito',
-    icon: CreditCard,
-    color: 'text-green-600'
+    icon: <CreditCard className="h-4 w-4 mr-1" />,
+    color: 'text-blue-500'
   },
   pix: {
     label: 'PIX',
-    icon: CreditCard,
-    color: 'text-purple-600'
+    icon: <QrCode className="h-4 w-4 mr-1" />,
+    color: 'text-purple-500'
   },
   cash: {
     label: 'Dinheiro',
-    icon: CreditCard,
-    color: 'text-gray-600',
-    hasChange: true
+    icon: <Banknote className="h-4 w-4 mr-1" />,
+    color: 'text-yellow-500'
   },
   meal_voucher: {
     label: 'Vale-Refeição',
-    icon: CreditCard,
-    color: 'text-orange-600'
+    icon: <Wallet className="h-4 w-4 mr-1" />,
+    color: 'text-orange-500'
+  },
+  // Compatibilidade com formatos antigos
+  credit: {
+    label: 'Cartão de Crédito',
+    icon: <CreditCard className="h-4 w-4 mr-1" />,
+    color: 'text-green-500'
+  },
+  debit: {
+    label: 'Cartão de Débito',
+    icon: <CreditCard className="h-4 w-4 mr-1" />,
+    color: 'text-blue-500'
+  },
+  wallet: {
+    label: 'Vale-Refeição',
+    icon: <Wallet className="h-4 w-4 mr-1" />,
+    color: 'text-orange-500'
   }
 } as const
 
@@ -112,6 +133,15 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
           throw new Error('Pedido não encontrado')
         }
 
+        // Garante que statusUpdates existe
+        if (!data.statusUpdates) {
+          data.statusUpdates = [{
+            status: data.status,
+            message: statusMessages[data.status as keyof typeof statusMessages],
+            timestamp: data.createdAt
+          }]
+        }
+
         setOrder(data)
       } catch (err) {
         console.error('Erro ao carregar pedido:', err)
@@ -128,7 +158,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
   }, [orderId])
 
   // Define quais status estão disponíveis para transição
-  const getAvailableStatuses = (currentStatus: string, orderType: string) => {
+  const getAvailableStatuses = (currentStatus: string, deliveryMethod: string) => {
     switch (currentStatus) {
       case 'pending':
         return ['confirmed', 'rejected']
@@ -137,7 +167,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
       case 'preparing':
         return ['ready']
       case 'ready':
-        return orderType === 'delivery' ? ['out_for_delivery'] : ['delivered']
+        return deliveryMethod === 'delivery' ? ['out_for_delivery'] : ['delivered']
       case 'out_for_delivery':
         return ['delivered']
       default:
@@ -209,7 +239,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
     )
   }
 
-  const availableStatuses = getAvailableStatuses(order.status, order.orderType)
+  const availableStatuses = getAvailableStatuses(order.status, order.deliveryMethod)
 
   return (
     <div className="space-y-6">
@@ -226,14 +256,19 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
           <h1 className="text-2xl font-bold text-zinc-900">Pedido #{order._id}</h1>
         </div>
 
-        {/* Status Atual */}
-        <div className={`rounded-lg ${statusColors[order.status]} px-4 py-2`}>
-          <div className="flex items-center gap-2">
-            {(() => {
-              const StatusIcon = statusIcons[order.status as keyof typeof statusIcons]
-              return <StatusIcon className="h-5 w-5" />
-            })()}
-            <span className="font-medium">{statusMessages[order.status]}</span>
+        <div className="flex items-center gap-4">
+          {/* Botão de Impressão Térmica */}
+          <ThermalPrintButton order={order} />
+          
+          {/* Status Atual */}
+          <div className={`rounded-lg ${statusColors[order.status]} px-4 py-2`}>
+            <div className="flex items-center gap-2">
+              {(() => {
+                const StatusIcon = statusIcons[order.status as keyof typeof statusIcons]
+                return <StatusIcon className="h-5 w-5" />
+              })()}
+              <span className="font-medium">{statusMessages[order.status]}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -256,26 +291,28 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
                   <Phone className="h-4 w-4 text-zinc-400" />
                   <span className="text-sm text-zinc-900">{order.customer.phone}</span>
                 </div>
-                {order.address && (
+                {order.deliveryAddress && (
                   <div className="flex items-start gap-2">
                     <MapPin className="h-4 w-4 text-zinc-400" />
                     <span className="text-sm text-zinc-900">
-                      {order.address.street}, {order.address.number}
-                      {order.address.complement && ` - ${order.address.complement}`}
+                      {order.deliveryAddress.street}, {order.deliveryAddress.number}
+                      {order.deliveryAddress.complement && ` - ${order.deliveryAddress.complement}`}
                       <br />
-                      {order.address.neighborhood} - {order.address.city}/{order.address.state}
+                      {order.deliveryAddress.neighborhood} - {order.deliveryAddress.city}/{order.deliveryAddress.state}
                       <br />
-                      CEP: {order.address.cep}
+                      CEP: {order.deliveryAddress.zipCode}
                     </span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
                   <CreditCard className={`h-4 w-4 ${
-                    paymentMethods[order.payment.method as keyof typeof paymentMethods]?.color || 'text-zinc-400'
+                    paymentMethods[(order.paymentMethod || order.payment?.method) as keyof typeof paymentMethods]?.color || 'text-zinc-400'
                   }`} />
                   <span className="text-sm text-zinc-900">
-                    {paymentMethods[order.payment.method as keyof typeof paymentMethods]?.label || 'Método não definido'}
-                    {order.payment.method === 'cash' && order.payment.change && ` (Troco para R$ ${order.payment.change})`}
+                    {paymentMethods[(order.paymentMethod || order.payment?.method) as keyof typeof paymentMethods]?.label || 'Método não definido'}
+                    {((order.paymentMethod === 'cash' && order.change) || 
+                      (order.payment?.method === 'cash' && order.payment?.change)) && 
+                      ` (Troco para ${formatCurrency(order.change || order.payment?.change)})`}
                   </span>
                 </div>
               </div>
@@ -351,35 +388,82 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
           <div className="p-6">
             <div className="space-y-4">
               {order.items.map((item) => (
-                <div key={`item-${item.id || Math.random()}`} className="flex justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-900">
-                      {item.quantity}x {item.name}
-                    </p>
-                    {item.observation && (
-                      <p className="text-sm text-zinc-600">Obs: {item.observation}</p>
-                    )}
-                    {item.additions?.map((addition) => (
-                      <p key={`addition-${addition.id || addition.name}`} className="text-sm text-zinc-600">
-                        + {addition.name}
+                <div key={`item-${item.id || Math.random()}`} className="rounded-lg border border-zinc-100 bg-zinc-50 p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-zinc-900">
+                        {item.quantity}x {item.name}
                       </p>
-                    ))}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-zinc-900">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                      }).format(item.price * item.quantity)}
-                    </p>
-                    {item.additions?.map((addition) => (
-                      <p key={`addition-price-${addition.id || addition.name}`} className="text-sm text-zinc-600">
+                      
+                      {/* Informações de Meia a Meia */}
+                      {item.isHalfHalf && item.halfHalf && (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <div className="h-3 w-3 rounded-full bg-krato-500"></div>
+                            <p className="text-sm text-zinc-700">
+                              <span className="font-medium">Primeira metade:</span> {item.halfHalf.firstHalf.name}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-3 w-3 rounded-full bg-krato-700"></div>
+                            <p className="text-sm text-zinc-700">
+                              <span className="font-medium">Segunda metade:</span> {item.halfHalf.secondHalf.name}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Adicionais da primeira metade */}
+                      {item.isHalfHalf && item.halfHalf && item.halfHalf.firstHalf.additions?.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium text-zinc-700">Adicionais (Primeira metade):</p>
+                          {item.halfHalf.firstHalf.additions.map((addition, index) => (
+                            <p key={`addition-first-half-${index}`} className="text-sm text-zinc-600">
+                              + {addition.name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Adicionais da segunda metade */}
+                      {item.isHalfHalf && item.halfHalf && item.halfHalf.secondHalf.additions?.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium text-zinc-700">Adicionais (Segunda metade):</p>
+                          {item.halfHalf.secondHalf.additions.map((addition, index) => (
+                            <p key={`addition-second-half-${index}`} className="text-sm text-zinc-600">
+                              + {addition.name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Adicionais regulares (não meio a meio) */}
+                      {!item.isHalfHalf && item.additions && item.additions.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium text-zinc-700">Adicionais:</p>
+                          {item.additions.map((addition, idx) => (
+                            <p key={`addition-${addition.id || addition.name || idx}`} className="text-sm text-zinc-600">
+                              + {addition.name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Observações */}
+                      {(item.observations || item.observation) && (
+                        <p className="mt-2 text-sm text-zinc-600">
+                          <span className="font-medium">Observação:</span> {item.observations || item.observation}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-zinc-900">
                         {new Intl.NumberFormat('pt-BR', {
                           style: 'currency',
                           currency: 'BRL'
-                        }).format(addition.price)}
+                        }).format(item.price * item.quantity)}
                       </p>
-                    ))}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -391,11 +475,11 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
                     {new Intl.NumberFormat('pt-BR', {
                       style: 'currency',
                       currency: 'BRL'
-                    }).format(order.subtotal)}
+                    }).format(order.subtotal || order.total - (order.deliveryFee || 0))}
                   </span>
                 </div>
 
-                {order.deliveryFee && (
+                {order.deliveryFee > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-600">Taxa de entrega</span>
                     <span className="text-zinc-900">

@@ -18,6 +18,7 @@ type OrderType = 'delivery' | 'pickup' | null
 interface CustomerData {
   name: string
   phone: string
+  email?: string
 }
 
 interface AddressData {
@@ -37,6 +38,31 @@ const formatCurrency = (value: number) => {
   }).format(value)
 }
 
+// Helper para calcular o preço do item corretamente
+const calculateItemPrice = (item: CartItem) => {
+  if (item.halfHalf) {
+    // Para pizza meio a meio, calcula o preço baseado no sabor mais caro
+    const firstHalfPrice = item.halfHalf.firstHalf.product.price / 2;
+    const secondHalfPrice = item.halfHalf.secondHalf.product.price / 2;
+    const basePrice = Math.max(firstHalfPrice, secondHalfPrice) * 2;
+    
+    // Adicionais são calculados separadamente
+    const firstHalfAdditionsPrice = item.halfHalf.firstHalf.selectedAdditions?.reduce(
+      (acc, addition) => acc + addition.price, 0
+    ) || 0;
+    
+    const secondHalfAdditionsPrice = item.halfHalf.secondHalf.selectedAdditions?.reduce(
+      (acc, addition) => acc + addition.price, 0
+    ) || 0;
+    
+    return basePrice + firstHalfAdditionsPrice + secondHalfAdditionsPrice;
+  }
+  
+  // Para produtos normais, retorna o preço base + adicionais
+  return item.product.price + 
+    item.selectedAdditions.reduce((acc, addition) => acc + addition.price, 0);
+};
+
 export default function CartPage() {
   const router = useRouter()
   const {
@@ -48,6 +74,10 @@ export default function CartPage() {
     clearCart,
   } = useCartStore()
 
+  // Estado para controlar o carregamento inicial do carrinho
+  const [isCartLoading, setIsCartLoading] = useState(true)
+  // Estado para controlar o carregamento durante o envio do pedido
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [orderType, setOrderType] = useState<OrderType>(null)
   const [selectedPayment, setSelectedPayment] = useState<string>('')
   const [customerData, setCustomerData] = useState<CustomerData>({
@@ -67,49 +97,45 @@ export default function CartPage() {
   const [isLoadingCep, setIsLoadingCep] = useState(false)
   const [restaurantData, setRestaurantData] = useState<any>(null)
   const { supabase } = useSupabase()
+  const [restaurantId, setRestaurantId] = useState<string | null>(null)
 
-  // Busca os dados do restaurante
+  // Carrega dados do restaurante
   useEffect(() => {
     const fetchRestaurant = async () => {
       try {
-        const { data: restaurant, error } = await supabase
-          .from('restaurant_settings')
-          .select('*')
-          .eq('user_id', 'e0dba73b-0870-4b0d-8026-7341db950c16') // ID fixo do restaurante demo
-          .single()
+        // Tenta obter o restaurantId do localStorage
+        const storedRestaurantId = localStorage.getItem('current_restaurant_id')
+        
+        if (storedRestaurantId) {
+          console.log('RestaurantId obtido do localStorage:', storedRestaurantId)
+          setRestaurantId(storedRestaurantId)
+          
+          const { data: restaurant, error } = await supabase
+            .from('restaurant_settings')
+            .select('*')
+            .eq('user_id', storedRestaurantId)
+            .single()
 
-        if (error) {
-          console.error('Erro ao buscar dados do restaurante:', error)
-          return
+          if (error) {
+            console.error('Erro ao buscar dados do restaurante:', error)
+            return
+          }
+
+          console.log('Dados do restaurante carregados:', {
+            address: restaurant?.address,
+            openingHours: restaurant?.opening_hours,
+            deliveryZones: restaurant?.delivery_info?.zones
+          })
+
+          setRestaurantData(restaurant)
+        } else {
+          console.error('RestaurantId não encontrado no localStorage')
         }
-
-        console.log('Dados do restaurante carregados:', {
-          address: restaurant?.address,
-          openingHours: restaurant?.opening_hours,
-          deliveryZones: restaurant?.delivery_info?.zones
-        })
-
-        // Garante que as zonas de entrega existam
-        const deliveryZones = restaurant?.delivery_info?.zones || [
-          {
-            id: '1',
-            minDistance: 0,
-            maxDistance: 3,
-            fee: 5,
-            estimatedTime: '30-45 min',
-            active: true
-          }
-        ]
-
-        setRestaurantData({
-          ...restaurant,
-          delivery_info: {
-            ...restaurant?.delivery_info,
-            zones: deliveryZones
-          }
-        })
       } catch (error) {
         console.error('Erro ao buscar dados do restaurante:', error)
+      } finally {
+        // Marca que o carregamento inicial foi concluído
+        setIsCartLoading(false)
       }
     }
 
@@ -209,36 +235,79 @@ export default function CartPage() {
 
   const handleFinishOrder = async () => {
     try {
+      if (!restaurantId) {
+        throw new Error('ID do restaurante não encontrado')
+      }
+      
+      // Indica que está processando o pedido
+      setIsSubmitting(true)
+      
       // Cria o objeto do pedido
       const orderData = {
-        restaurantId: restaurantData?.user_id, // Usa o ID real do restaurante
-        status: 'pending',
-        orderType,
-        customer: customerData,
-        address: orderType === 'delivery' ? addressData : null,
-        payment: {
-          method: selectedPayment,
-          change: selectedPayment === 'cash' ? changeFor : null,
+        action: 'createOrder',
+        restaurantId: restaurantId,
+        customer: {
+          name: customerData.name,
+          email: customerData.email || '',
+          phone: customerData.phone
         },
         items: items.map(item => ({
-          id: item.id,
-          name: item.product.name,
-          price: item.product.price,
+          productId: item.id,
+          name: item.halfHalf 
+            ? `${item.product.name} (Meio a Meio)` 
+            : item.product.name,
+          price: calculateItemPrice(item),
           quantity: item.quantity,
-          observation: item.observation || null,
-          additions: item.selectedAdditions.map(addition => ({
-            name: addition.name,
-            price: addition.price,
-          })),
+          observations: item.observation || '',
+          // Adicionando informações de pizzas meio a meio
+          isHalfHalf: !!item.halfHalf,
+          halfHalf: item.halfHalf ? {
+            firstHalf: {
+              name: item.halfHalf.firstHalf.product.name,
+              additions: item.halfHalf.firstHalf.selectedAdditions?.map(a => ({
+                name: a.name,
+                price: a.price
+              })) || []
+            },
+            secondHalf: {
+              name: item.halfHalf.secondHalf.product.name,
+              additions: item.halfHalf.secondHalf.selectedAdditions?.map(a => ({
+                name: a.name,
+                price: a.price
+              })) || []
+            }
+          } : null
         })),
         subtotal: getTotalPrice(),
-        deliveryFee: orderType === 'delivery' ? fee : null,
         total: getTotalPrice() + (orderType === 'delivery' ? fee : 0),
-        statusUpdates: [{
-          status: 'pending',
-          timestamp: new Date(),
-          message: 'Pedido realizado'
-        }]
+        status: 'pending',
+        orderType: orderType,
+        deliveryMethod: orderType as 'delivery' | 'pickup',
+        address: orderType === 'delivery' ? {
+          street: addressData.street,
+          number: addressData.number,
+          complement: addressData.complement || '',
+          neighborhood: addressData.neighborhood,
+          city: addressData.city,
+          state: addressData.state,
+          cep: addressData.cep
+        } : undefined,
+        deliveryAddress: orderType === 'delivery' ? {
+          street: addressData.street,
+          number: addressData.number,
+          complement: addressData.complement || '',
+          neighborhood: addressData.neighborhood,
+          city: addressData.city,
+          state: addressData.state,
+          zipCode: addressData.cep
+        } : undefined,
+        paymentMethod: selectedPayment,
+        // Adiciona o troco quando o pagamento é em dinheiro
+        ...(selectedPayment === 'cash' && changeFor ? {
+          change: parseFloat(changeFor.replace(/[^\d,]/g, '').replace(',', '.'))
+        } : {}),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
 
       console.log('Enviando pedido:', orderData)
@@ -260,9 +329,6 @@ export default function CartPage() {
       const data = await response.json()
       console.log('Pedido criado com sucesso:', data)
 
-      // Limpa o carrinho
-      clearCart()
-
       // Verifica se temos um ID válido antes de redirecionar
       if (!data.id && !data._id) {
         throw new Error('ID do pedido não retornado pelo servidor')
@@ -271,8 +337,15 @@ export default function CartPage() {
       // Usa o id ou _id, o que estiver disponível
       const orderId = data.id || data._id
 
-      // Redireciona para a página de status
-      router.push(`/order-status/${orderId}`)
+      // Primeiro redireciona para a página de status
+      // Isso garante que a navegação comece antes de limpar o carrinho
+      router.push(`/order-status/${orderId}`);
+      
+      // Pequeno atraso antes de limpar o carrinho para garantir que a navegação já começou
+      setTimeout(() => {
+        clearCart();
+      }, 100);
+      
     } catch (error) {
       console.error('Erro completo:', error)
       if (error instanceof Error) {
@@ -280,9 +353,23 @@ export default function CartPage() {
       } else {
         alert('Erro ao finalizar pedido. Por favor, tente novamente.')
       }
+    } finally {
+      // Marca que o carregamento foi concluído
+      setIsSubmitting(false)
     }
   }
 
+  // Componente de Loading
+  if (isCartLoading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-krato-500"></div>
+        <p className="text-zinc-900">Carregando carrinho...</p>
+      </div>
+    )
+  }
+
+  // Componente de Carrinho Vazio
   if (items.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
@@ -290,7 +377,7 @@ export default function CartPage() {
         <p className="text-zinc-900">Adicione itens para continuar</p>
         <Link
           href={`/${restaurantData?.slug || ''}`}
-          className="mt-4 flex items-center gap-2 text-green-600 hover:text-green-700"
+          className="mt-4 flex items-center gap-2 text-krato-500 hover:text-krato-600"
         >
           <ArrowLeft className="h-4 w-4" />
           Voltar ao cardápio
@@ -353,6 +440,7 @@ export default function CartPage() {
                         src={item.product.image}
                         alt={item.product.name}
                         fill
+                        sizes="(max-width: 768px) 100px, 96px"
                         className="object-cover"
                       />
                     </div>
@@ -361,13 +449,37 @@ export default function CartPage() {
                   <div className="flex flex-1 flex-col">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-medium text-zinc-900">{item.product.name}</h3>
-                        <p className="text-sm text-zinc-600">{item.product.description}</p>
+                        <h3 className="font-medium text-zinc-900">
+                          {item.halfHalf 
+                            ? `${item.product.name} (Meio a Meio)` 
+                            : item.product.name
+                          }
+                        </h3>
+                        
+                        {item.halfHalf ? (
+                          <div className="mt-1 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <div className="h-3 w-3 rounded-full bg-krato-500"></div>
+                              <p className="text-sm text-zinc-900">
+                                <span className="font-medium">Primeira metade:</span> {item.halfHalf.firstHalf.product.name}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="h-3 w-3 rounded-full bg-krato-700"></div>
+                              <p className="text-sm text-zinc-900">
+                                <span className="font-medium">Segunda metade:</span> {item.halfHalf.secondHalf.product.name}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-zinc-600">{item.product.description}</p>
+                        )}
+                        
                         <span className="text-sm text-zinc-900">
                           {new Intl.NumberFormat('pt-BR', {
                             style: 'currency',
                             currency: 'BRL',
-                          }).format(item.product.price)}
+                          }).format(calculateItemPrice(item))}
                         </span>
                       </div>
 
@@ -379,7 +491,65 @@ export default function CartPage() {
                       </button>
                     </div>
 
-                    {item.selectedAdditions.length > 0 && (
+                    {/* Adicionais para pizza meio a meio */}
+                    {item.halfHalf && (
+                      <>
+                        {/* Adicionais da primeira metade */}
+                        {item.halfHalf.firstHalf.selectedAdditions && item.halfHalf.firstHalf.selectedAdditions.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <span className="text-sm font-medium text-zinc-900">
+                              Adicionais (Primeira metade):
+                            </span>
+                            {item.halfHalf.firstHalf.selectedAdditions.map((addition) => (
+                              <div
+                                key={`cart-addition-half1-${item.id}-${addition.id}`}
+                                className="flex items-center justify-between text-sm"
+                              >
+                                <span className="text-zinc-900">
+                                  {addition.name}
+                                </span>
+                                <span className="text-zinc-900">
+                                  +{' '}
+                                  {new Intl.NumberFormat('pt-BR', {
+                                    style: 'currency',
+                                    currency: 'BRL',
+                                  }).format(addition.price)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Adicionais da segunda metade */}
+                        {item.halfHalf.secondHalf.selectedAdditions && item.halfHalf.secondHalf.selectedAdditions.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <span className="text-sm font-medium text-zinc-900">
+                              Adicionais (Segunda metade):
+                            </span>
+                            {item.halfHalf.secondHalf.selectedAdditions.map((addition) => (
+                              <div
+                                key={`cart-addition-half2-${item.id}-${addition.id}`}
+                                className="flex items-center justify-between text-sm"
+                              >
+                                <span className="text-zinc-900">
+                                  {addition.name}
+                                </span>
+                                <span className="text-zinc-900">
+                                  +{' '}
+                                  {new Intl.NumberFormat('pt-BR', {
+                                    style: 'currency',
+                                    currency: 'BRL',
+                                  }).format(addition.price)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Adicionais normais */}
+                    {!item.halfHalf && item.selectedAdditions.length > 0 && (
                       <div className="mt-2 space-y-1">
                         <span className="text-sm font-medium text-zinc-900">
                           Adicionais:
@@ -437,6 +607,12 @@ export default function CartPage() {
                         <Plus className="h-4 w-4" />
                       </button>
                     </div>
+                    
+                    {item.quantity > 1 && (
+                      <div className="mt-2 text-sm font-medium text-zinc-900 text-right">
+                        Total: {formatCurrency(calculateItemPrice(item) * item.quantity)}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -464,7 +640,7 @@ export default function CartPage() {
                       value="delivery"
                       checked={orderType === 'delivery'}
                       onChange={(e) => setOrderType(e.target.value as OrderType)}
-                      className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                      className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                     />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-zinc-900">Delivery</span>
@@ -481,7 +657,7 @@ export default function CartPage() {
                       value="pickup"
                       checked={orderType === 'pickup'}
                       onChange={(e) => setOrderType(e.target.value as OrderType)}
-                      className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                      className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                     />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-zinc-900">Retirada</span>
@@ -508,7 +684,7 @@ export default function CartPage() {
                     <div className="text-right">
                       {feeLoading ? (
                         <div className="flex items-center gap-2">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-green-600" />
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-krato-600" />
                           <span className="text-zinc-600">Calculando...</span>
                         </div>
                       ) : error ? (
@@ -560,11 +736,11 @@ export default function CartPage() {
                         value={addressData.cep}
                         onChange={handleCepChange}
                         maxLength={9}
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                       />
                       {isLoadingCep && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-green-600" />
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-krato-600" />
                         </div>
                       )}
                     </div>
@@ -575,14 +751,14 @@ export default function CartPage() {
                         placeholder="Rua"
                         value={addressData.street}
                         onChange={(e) => setAddressData(prev => ({ ...prev, street: e.target.value }))}
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                       />
                       <input
                         type="text"
                         placeholder="Número"
                         value={addressData.number}
                         onChange={(e) => setAddressData(prev => ({ ...prev, number: e.target.value }))}
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                       />
                     </div>
 
@@ -591,7 +767,7 @@ export default function CartPage() {
                       placeholder="Complemento"
                       value={addressData.complement}
                       onChange={(e) => setAddressData(prev => ({ ...prev, complement: e.target.value }))}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                     />
 
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -600,7 +776,7 @@ export default function CartPage() {
                         placeholder="Bairro"
                         value={addressData.neighborhood}
                         onChange={(e) => setAddressData(prev => ({ ...prev, neighborhood: e.target.value }))}
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <input
@@ -608,7 +784,7 @@ export default function CartPage() {
                           placeholder="Cidade"
                           value={addressData.city}
                           onChange={(e) => setAddressData(prev => ({ ...prev, city: e.target.value }))}
-                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                         />
                         <input
                           type="text"
@@ -616,7 +792,7 @@ export default function CartPage() {
                           value={addressData.state}
                           onChange={(e) => setAddressData(prev => ({ ...prev, state: e.target.value }))}
                           maxLength={2}
-                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                         />
                       </div>
                     </div>
@@ -634,7 +810,7 @@ export default function CartPage() {
                     placeholder="Nome completo"
                     value={customerData.name}
                     onChange={(e) => setCustomerData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                   />
 
                   <PatternFormat
@@ -645,7 +821,7 @@ export default function CartPage() {
                     onValueChange={(values) => {
                       setCustomerData(prev => ({ ...prev, phone: values.value }))
                     }}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                   />
                 </div>
               </div>
@@ -663,10 +839,10 @@ export default function CartPage() {
                       <input
                         type="radio"
                         name="payment"
-                        value="credit"
-                        checked={selectedPayment === 'credit'}
+                        value="credit_card"
+                        checked={selectedPayment === 'credit_card'}
                         onChange={(e) => setSelectedPayment(e.target.value)}
-                        className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                        className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                       />
                       <div className="flex flex-1 items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -681,10 +857,10 @@ export default function CartPage() {
                       <input
                         type="radio"
                         name="payment"
-                        value="debit"
-                        checked={selectedPayment === 'debit'}
+                        value="debit_card"
+                        checked={selectedPayment === 'debit_card'}
                         onChange={(e) => setSelectedPayment(e.target.value)}
-                        className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                        className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                       />
                       <div className="flex flex-1 items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -702,7 +878,7 @@ export default function CartPage() {
                         value="pix"
                         checked={selectedPayment === 'pix'}
                         onChange={(e) => setSelectedPayment(e.target.value)}
-                        className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                        className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                       />
                       <div className="flex flex-1 items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -720,7 +896,7 @@ export default function CartPage() {
                         value="cash"
                         checked={selectedPayment === 'cash'}
                         onChange={(e) => setSelectedPayment(e.target.value)}
-                        className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                        className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                       />
                       <div className="flex flex-1 items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -750,7 +926,7 @@ export default function CartPage() {
                             prefix="R$ "
                             decimalScale={2}
                             fixedDecimalScale
-                            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600"
+                            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-krato-600 focus:outline-none focus:ring-1 focus:ring-krato-600"
                           />
                         </label>
                       </div>
@@ -760,10 +936,10 @@ export default function CartPage() {
                       <input
                         type="radio"
                         name="payment"
-                        value="wallet"
-                        checked={selectedPayment === 'wallet'}
+                        value="meal_voucher"
+                        checked={selectedPayment === 'meal_voucher'}
                         onChange={(e) => setSelectedPayment(e.target.value)}
-                        className="h-4 w-4 border-zinc-300 text-green-600 focus:ring-green-600"
+                        className="h-4 w-4 border-zinc-300 text-krato-500 focus:ring-krato-500"
                       />
                       <div className="flex flex-1 items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -782,14 +958,19 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={handleFinishOrder}
-                  disabled={!canFinishOrder}
+                  disabled={!canFinishOrder || isSubmitting}
                   className={`w-full rounded-lg px-4 py-3 text-center font-medium text-white transition-colors
-                    ${canFinishOrder
-                      ? 'bg-green-600 hover:bg-green-700'
+                    ${canFinishOrder && !isSubmitting
+                      ? 'bg-krato-500 hover:bg-krato-600'
                       : 'cursor-not-allowed bg-zinc-300'
                     }`}
                 >
-                  {!isLoading && !feeLoading
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      <span>Processando...</span>
+                    </div>
+                  ) : !isLoading && !feeLoading
                     ? canFinishOrder
                       ? 'Finalizar Pedido'
                       : !isOpen

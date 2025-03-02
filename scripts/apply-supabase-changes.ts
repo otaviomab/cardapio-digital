@@ -21,7 +21,7 @@ async function applyChanges() {
       name: 'Restaurante Demo',
       description: 'O melhor restaurante da cidade',
       slug: 'restaurante-demo',
-      logo_url: '/images/logotipo.png',
+      logo_url: '/images/logotipo-new2.png',
       cover_url: '/images/hamburguer.png',
       address: {
         street: 'Rua das Flores',

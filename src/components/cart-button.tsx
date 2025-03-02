@@ -25,7 +25,7 @@ export function CartButton() {
     <div className="fixed bottom-8 left-1/2 z-50 w-full max-w-screen-sm -translate-x-1/2 px-4">
       <Link
         href="/cart"
-        className="flex w-full items-center justify-between rounded-full bg-green-600 px-5 py-3 text-white shadow-xl hover:bg-green-700"
+        className="flex w-full items-center justify-between rounded-full bg-krato-500 px-5 py-3 text-white shadow-xl hover:bg-krato-600"
       >
         <div className="flex items-center gap-4">
           <ShoppingCart className="h-5 w-5" />

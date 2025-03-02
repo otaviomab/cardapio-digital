@@ -60,6 +60,13 @@ export default async function RestaurantPage({ params }: PageProps) {
     categoryId: product.categoryId?.toString()
   }))
 
+  // Log para depuração
+  console.log('Produtos carregados:', normalizedProducts.map(p => ({
+    id: p.id,
+    name: p.name,
+    allowHalfHalf: p.allowHalfHalf
+  })))
+
   const restaurant = {
     id: settings.user_id,
     name: settings.name,
@@ -69,7 +76,8 @@ export default async function RestaurantPage({ params }: PageProps) {
     address: settings.address || {},
     contact: settings.contact || {},
     openingHours: settings.opening_hours || [],
-    deliveryInfo: settings.delivery_info || {}
+    deliveryInfo: settings.delivery_info || {},
+    restaurantType: settings.restaurant_type || 'restaurant'
   }
 
   return (

@@ -84,7 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             console.log('Layout: Timeout de segurança ativado - desativando estado de loading')
             setIsLoading(false)
           }
-        }, 5000) // 5 segundos de timeout
+        }, 3000) // Reduzido para 3 segundos
         
         const { data: { user } } = await supabase.auth.getUser()
         
@@ -96,6 +96,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           console.log('Layout: Usuário não autenticado')
           setIsLoggedIn(false)
           setRestaurantId(null)
+          
+          // Se não estiver em uma página de login/signup, redireciona imediatamente
+          if (pathname !== '/admin/login' && pathname !== '/admin/signup') {
+            console.log('Layout: Redirecionando para login (usuário não encontrado)')
+            router.push('/admin/login')
+          }
         }
         
         // Limpa o timeout de segurança
@@ -108,23 +114,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setIsLoading(false)
       }
     }
-    getUser()
-  }, [supabase])
-
-  // Efeito para redirecionar se não estiver logado
-  useEffect(() => {
-    if (isMounted && !isLoading && !isLoggedIn && 
-        pathname !== '/admin/login' && 
-        pathname !== '/admin/signup') {
-      console.log('Layout: Redirecionando para login, usuário não autenticado', {
-        isMounted,
-        isLoggedIn,
-        isLoading,
-        pathname
-      })
-      router.push('/admin/login')
+    
+    // Só executa a verificação se o componente estiver montado
+    if (isMounted) {
+      getUser()
     }
-  }, [isLoggedIn, pathname, router, isMounted, isLoading])
+  }, [supabase, isMounted, pathname, router])
 
   // Efeito adicional para garantir que o loading não fique preso
   useEffect(() => {

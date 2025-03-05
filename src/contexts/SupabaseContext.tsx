@@ -19,8 +19,23 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Mudança de estado de autenticação:', event)
+      
+      // Atualiza o estado da aplicação
       router.refresh()
+      
+      // Se o usuário fez logout, redireciona para a página de login
+      if (event === 'SIGNED_OUT') {
+        console.log('Usuário deslogado, redirecionando para login')
+        router.push('/admin/login')
+      }
+      
+      // Se o usuário fez login, redireciona para o dashboard
+      if (event === 'SIGNED_IN') {
+        console.log('Usuário logado, atualizando estado da aplicação')
+        // Não redirecionamos aqui para evitar conflito com o redirecionamento na página de login
+      }
     })
 
     return () => {

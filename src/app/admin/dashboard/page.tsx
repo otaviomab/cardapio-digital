@@ -11,8 +11,7 @@ import {
   ArrowRight,
   ChevronRight,
   LayoutDashboard,
-  Users,
-  Bell
+  Users
 } from 'lucide-react'
 import { useSupabase } from '@/contexts/SupabaseContext'
 import { getDashboardStats } from '@/lib/api-services'
@@ -54,22 +53,9 @@ export default function AdminDashboard() {
     averageTicket: 0,
     recentOrders: []
   })
-  const [restaurantId, setRestaurantId] = useState<string | null>(null)
-  const [isSendingTest, setIsSendingTest] = useState(false)
 
   useEffect(() => {
     loadStats()
-    const getUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          setRestaurantId(user.id)
-        }
-      } catch (error) {
-        console.error('Erro ao obter usuário:', error)
-      }
-    }
-    getUser()
   }, [supabase])
 
   const loadStats = async () => {
@@ -163,144 +149,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleTestNotification = () => {
-    if (!restaurantId) {
-      console.error('RestaurantId não disponível para teste')
-      return
-    }
-    
-    setIsSendingTest(true)
-    console.log('Iniciando teste de notificação para restaurantId:', restaurantId)
-    
-    try {
-      // Verifica se o socket está disponível
-      console.log('window.connectSocket disponível?', typeof window !== 'undefined' && !!window.connectSocket)
-      
-      if (typeof window !== 'undefined' && window.connectSocket) {
-        console.log('Usando Socket.IO diretamente')
-        
-        // Cria uma instância do socket com a URL correta
-        const socket = window.connectSocket()
-        console.log('Socket criado:', socket)
-        
-        // Aguarda a conexão antes de enviar o evento
-        socket.on('connect', () => {
-          console.log('Socket conectado com ID:', socket.id)
-          
-          // Envia o evento de teste
-          socket.emit('test-notification', { 
-            restaurantId,
-            orderType: 'delivery' // Define o tipo de pedido como entrega
-          })
-          console.log('Evento test-notification emitido')
-        })
-        
-        socket.on('test-notification-sent', (data) => {
-          console.log('Notificação de teste enviada:', data)
-          setIsSendingTest(false)
-          socket.disconnect()
-        })
-        
-        socket.on('test-notification-error', (error) => {
-          console.error('Erro na notificação de teste:', error)
-          setIsSendingTest(false)
-          socket.disconnect()
-        })
-        
-        socket.on('connect_error', (error) => {
-          console.error('Erro ao conectar ao Socket.IO:', error)
-          setIsSendingTest(false)
-          socket.disconnect()
-          
-          // Tenta via API como fallback
-          useFallbackApi()
-        })
-        
-        // Timeout para garantir que não ficará esperando indefinidamente
-        setTimeout(() => {
-          if (isSendingTest) {
-            console.log('Timeout atingido, usando API como fallback')
-            setIsSendingTest(false)
-            socket.disconnect()
-            // Tenta via API como fallback
-            useFallbackApi()
-          }
-        }, 5000)
-      } else {
-        console.log('Socket.IO não disponível, usando API')
-        useFallbackApi()
-      }
-    } catch (error) {
-      console.error('Erro ao enviar notificação de teste:', error)
-      setIsSendingTest(false)
-      
-      // Tenta via API como fallback em caso de erro
-      useFallbackApi()
-    }
-  }
-  
-  // Função para usar a API como fallback
-  const useFallbackApi = () => {
-    console.log('Enviando notificação via API')
-    fetch('/api/socket', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        event: `new-order-${restaurantId}`,
-        room: restaurantId,
-        data: {
-          _id: `test-${Date.now()}`,
-          restaurantId,
-          customer: {
-            name: 'Cliente de Teste',
-            phone: '(11) 99999-9999'
-          },
-          items: [
-            {
-              name: 'Produto de Teste',
-              price: 10,
-              quantity: 1
-            }
-          ],
-          total: 10,
-          status: 'pending',
-          orderType: 'delivery',
-          deliveryMethod: 'delivery',
-          address: {
-            street: 'Rua de Teste',
-            number: '123',
-            complement: 'Apto 45',
-            neighborhood: 'Centro',
-            city: 'São Paulo',
-            state: 'SP',
-            cep: '01001-000'
-          },
-          deliveryAddress: {
-            street: 'Rua de Teste',
-            number: '123',
-            complement: 'Apto 45',
-            neighborhood: 'Centro',
-            city: 'São Paulo',
-            state: 'SP',
-            zipCode: '01001-000'
-          },
-          createdAt: new Date().toISOString()
-        }
-      }),
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Notificação de teste enviada via API:', data)
-      setIsSendingTest(false)
-    })
-    .catch(error => {
-      console.error('Erro ao enviar notificação de teste via API:', error)
-      setIsSendingTest(false)
-    })
-  }
-
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -313,44 +161,6 @@ export default function AdminDashboard() {
     <div className="space-y-4 lg:space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-zinc-900">Dashboard</h1>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              // Teste simples para verificar se o Socket.IO está funcionando
-              if (typeof window !== 'undefined' && window.connectSocket) {
-                const socket = window.connectSocket()
-                console.log('Socket criado para teste simples:', socket)
-                
-                socket.on('connect', () => {
-                  console.log('Socket conectado com ID:', socket.id)
-                  alert('Socket.IO conectado com sucesso! ID: ' + socket.id)
-                  socket.disconnect()
-                })
-                
-                socket.on('connect_error', (error) => {
-                  console.error('Erro ao conectar ao Socket.IO:', error)
-                  alert('Erro ao conectar ao Socket.IO: ' + error.message)
-                  socket.disconnect()
-                })
-              } else {
-                alert('Socket.IO não está disponível no cliente')
-              }
-            }}
-            className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
-          >
-            Testar Socket
-          </button>
-          
-          <button
-            onClick={handleTestNotification}
-            disabled={isSendingTest || !restaurantId}
-            className="flex items-center gap-2 rounded-lg bg-krato-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-krato-600 disabled:opacity-50"
-          >
-            <Bell className="h-4 w-4" />
-            {isSendingTest ? 'Enviando...' : 'Testar Notificação'}
-          </button>
-        </div>
       </div>
 
       <div>

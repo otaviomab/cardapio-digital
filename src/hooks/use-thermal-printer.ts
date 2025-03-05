@@ -2,162 +2,268 @@
 
 import { useState, useCallback, useEffect } from 'react'
 
-// Lista de fabricantes comuns de impressoras térmicas
-const PRINTER_VENDORS = [
-  { id: 0x0483, name: 'Bematech' }, // Bematech
-  { id: 0x0416, name: 'Elgin' }, // Elgin
-  { id: 0x067b, name: 'Daruma' }, // Daruma
-  { id: 0x04b8, name: 'Epson' }, // Epson
-  { id: 0x0525, name: 'Tanca' }, // Tanca
-  { id: 0x0dd4, name: 'Custom' }, // Custom
-  // Adicionar outros fabricantes conforme necessário
-]
-
 interface UseThermalPrinterReturn {
   isPrinting: boolean;
   isSupported: boolean;
   hasPrinterAccess: boolean;
   printerName: string | null;
   requestPrinterAccess: () => Promise<boolean>;
-  print: (data: Uint8Array) => Promise<boolean>;
+  print: (orderData: any, restaurantName?: string) => Promise<boolean>;
   error: string | null;
 }
 
 export function useThermalPrinter(): UseThermalPrinterReturn {
   const [isPrinting, setIsPrinting] = useState(false)
-  const [isSupported, setIsSupported] = useState(false)
-  const [hasPrinterAccess, setHasPrinterAccess] = useState(false)
-  const [printerName, setPrinterName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [device, setDevice] = useState<USBDevice | null>(null)
+  
+  // No novo modelo, sempre disponível para todos os navegadores
+  const isSupported = true
+  const hasPrinterAccess = true
+  const printerName = 'Impressora do Sistema'
 
-  // Verificar suporte à WebUSB API
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.usb) {
-      setIsSupported(true)
-      
-      // Tentar recuperar dispositivos já autorizados
-      navigator.usb.getDevices()
-        .then((devices) => {
-          if (devices.length > 0) {
-            setDevice(devices[0])
-            setHasPrinterAccess(true)
-            setPrinterName(devices[0].productName || 'Impressora Térmica')
-          }
-        })
-        .catch(err => {
-          console.error('Erro ao buscar dispositivos USB:', err)
-        })
-    }
+  // Solicitação de acesso à impressora (mantida por compatibilidade)
+  const requestPrinterAccess = useCallback(async (): Promise<boolean> => {
+    return true
   }, [])
 
-  // Solicitar acesso à impressora
-  const requestPrinterAccess = useCallback(async (): Promise<boolean> => {
-    if (!isSupported) {
-      setError('WebUSB não é suportado neste navegador')
-      return false
-    }
-
+  // Função de impressão usando API nativa do navegador
+  const print = useCallback(async (orderData: any, restaurantName = "KRATO CARDÁPIO DIGITAL"): Promise<boolean> => {
     try {
-      console.log("📋 Solicitando acesso a dispositivos USB...")
-      
-      // Solicitar qualquer dispositivo USB sem filtros
-      // Isso mostrará todos os dispositivos USB disponíveis
-      const selectedDevice = await navigator.usb.requestDevice({
-        filters: [] // Lista vazia para mostrar todos os dispositivos
-      })
-      
-      // Registrar informações do dispositivo para depuração
-      console.log("✅ Dispositivo selecionado:", selectedDevice)
-      console.log("📌 Nome do produto:", selectedDevice.productName)
-      console.log("📌 Fabricante:", selectedDevice.manufacturerName)
-      console.log("📌 ID do fabricante: 0x" + selectedDevice.vendorId.toString(16).padStart(4, '0'))
-      console.log("📌 ID do produto: 0x" + selectedDevice.productId.toString(16).padStart(4, '0'))
-      console.log("📌 Versão:", selectedDevice.deviceVersionMajor + "." + 
-                 selectedDevice.deviceVersionMinor + "." + 
-                 selectedDevice.deviceVersionSubminor)
-      console.log("📌 Configurações:", selectedDevice.configurations)
-      
-      setDevice(selectedDevice)
-      setHasPrinterAccess(true)
-      setPrinterName(
-        `${selectedDevice.manufacturerName || ''} ${selectedDevice.productName || 'Dispositivo USB'} (ID: 0x${selectedDevice.vendorId.toString(16).padStart(4, '0')})`
-      )
+      setIsPrinting(true)
       setError(null)
-      return true
-    } catch (err: any) {
-      // Usuário cancelou a seleção (não é um erro real)
-      if (err.name === 'NotFoundError') {
-        setError('Nenhum dispositivo USB foi selecionado. Verifique se sua impressora está conectada corretamente.')
-      } else {
-        setError(`Erro ao acessar dispositivo: ${err.message}`)
-        console.error('Erro ao acessar dispositivo USB:', err)
-      }
-      return false
-    }
-  }, [isSupported])
-
-  // Imprimir dados
-  const print = useCallback(async (data: Uint8Array): Promise<boolean> => {
-    if (!device) {
-      setError('Nenhum dispositivo conectado')
-      return false
-    }
-
-    setIsPrinting(true)
-    setError(null)
-
-    try {
-      // Abrir conexão se necessário
-      if (!device.opened) {
-        await device.open()
-      }
-
-      // Reivindicar interface
-      try {
-        await device.selectConfiguration(1)
-        await device.claimInterface(0)
-      } catch (e) {
-        // Algumas impressoras podem usar configurações diferentes ou já ter a interface reivindicada
-        try {
-          await device.releaseInterface(0)
-          await device.claimInterface(0)
-        } catch (err) {
-          console.log('Erro ao reivindicar interface, mas tentando continuar:', err)
-        }
-      }
-
-      // Encontrar endpoint de saída
-      const outEndpoint = device.configuration?.interfaces[0]?.alternate?.endpoints.find(
-        ep => ep.direction === 'out'
-      )
       
-      if (!outEndpoint) {
-        throw new Error('Não foi possível encontrar endpoint de saída do dispositivo')
+      // Criar uma janela em tela cheia para garantir que os botões fiquem visíveis
+      const printWindow = window.open('', '_blank', 'fullscreen=yes,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes,status=no')
+      
+      if (!printWindow) {
+        throw new Error('Não foi possível abrir janela de impressão')
       }
       
-      // Enviar dados para o dispositivo
-      await device.transferOut(outEndpoint.endpointNumber, data)
+      // Configurar o conteúdo para impressão térmica (largura fixa de 80mm)
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Impressão de Pedido</title>
+          <style>
+            @page {
+              size: 80mm auto;  /* Largura típica de papel térmico */
+              margin: 0;
+            }
+            body {
+              font-family: monospace;
+              font-size: 12px;
+              width: 80mm;
+              margin: 0 auto;
+              padding: 5px;
+            }
+            .print-container {
+              width: 80mm;
+              margin: 20px auto;
+              border: 1px dashed #ccc;
+              padding: 10px;
+              background-color: white;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .large { font-size: 14px; }
+            hr { border-top: 1px dashed #000; }
+            .item { margin-bottom: 5px; }
+            .total { font-weight: bold; margin-top: 10px; }
+            .print-button {
+              display: block;
+              width: 200px;
+              margin: 20px auto;
+              padding: 10px;
+              background-color: #4CAF50;
+              color: white;
+              font-size: 16px;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            }
+            .print-button:hover {
+              background-color: #45a049;
+            }
+            .close-button {
+              display: block;
+              width: 200px;
+              margin: 10px auto;
+              padding: 10px;
+              background-color: #f44336;
+              color: white;
+              font-size: 16px;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            }
+            .close-button:hover {
+              background-color: #d32f2f;
+            }
+            .instructions {
+              max-width: 500px;
+              margin: 20px auto;
+              padding: 10px;
+              background-color: #f9f9f9;
+              border: 1px solid #ddd;
+              border-radius: 4px;
+            }
+            @media print {
+              .print-button, .close-button, .instructions {
+                display: none;
+              }
+              .print-container {
+                border: none;
+                margin: 0;
+                padding: 0;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="instructions">
+            <h2>Impressão de Pedido</h2>
+            <p>Clique no botão "Imprimir" abaixo para enviar o pedido para a impressora.</p>
+            <p>Certifique-se de selecionar a impressora térmica na caixa de diálogo de impressão.</p>
+          </div>
+          
+          <div class="print-container">
+            <div class="center bold large">${restaurantName}</div>
+            <div class="center">${new Date().toLocaleString()}</div>
+            <div class="center bold">PEDIDO #${orderData._id || orderData.id || '000'}</div>
+            <hr>
+            <div>Cliente: ${orderData.customer?.name || 'Cliente'}</div>
+            <div>Telefone: ${orderData.customer?.phone || '-'}</div>
+            <div>Tipo: ${
+              (orderData.orderType === 'delivery' || orderData.deliveryMethod === 'delivery')
+                ? 'Entrega'
+                : 'Retirada'
+            }</div>
+            ${(orderData.orderType === 'delivery' || orderData.deliveryMethod === 'delivery') && orderData.deliveryAddress 
+              ? `<div>Endereço: ${
+                  typeof orderData.deliveryAddress === 'string' 
+                    ? orderData.deliveryAddress 
+                    : `${orderData.deliveryAddress.street}, ${orderData.deliveryAddress.number}${
+                        orderData.deliveryAddress.complement ? ` - ${orderData.deliveryAddress.complement}` : ''
+                      }, ${orderData.deliveryAddress.neighborhood}, ${orderData.deliveryAddress.city}`
+                }</div>` 
+              : ''}
+            <hr>
+            <div class="bold">ITENS DO PEDIDO:</div>
+            ${(orderData.items || []).map((item: any) => `
+              <div class="item">
+                <div class="bold">${item.quantity}x ${item.name}</div>
+                <div>R$ ${(item.price * item.quantity).toFixed(2)}</div>
+                ${
+                  // Verificar se é meia a meia
+                  item.isHalfHalf || item.isHalfAndHalf || item.halfHalf
+                    ? `
+                      <div>
+                        ${
+                          item.halfHalf
+                            ? `
+                              <div>½ ${item.halfHalf.firstHalf.name}</div>
+                              ${
+                                item.halfHalf.firstHalf.additions && item.halfHalf.firstHalf.additions.length > 0
+                                  ? item.halfHalf.firstHalf.additions.map((addition: any) => 
+                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
+                                    ).join('')
+                                  : ''
+                              }
+                              <div>½ ${item.halfHalf.secondHalf.name}</div>
+                              ${
+                                item.halfHalf.secondHalf.additions && item.halfHalf.secondHalf.additions.length > 0
+                                  ? item.halfHalf.secondHalf.additions.map((addition: any) => 
+                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
+                                    ).join('')
+                                  : ''
+                              }
+                            `
+                            : `
+                              <div>½ ${item.firstHalf}</div>
+                              ${
+                                item.firstHalfAdditions && item.firstHalfAdditions.length > 0
+                                  ? item.firstHalfAdditions.map((addition: any) => 
+                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
+                                    ).join('')
+                                  : ''
+                              }
+                              <div>½ ${item.secondHalf}</div>
+                              ${
+                                item.secondHalfAdditions && item.secondHalfAdditions.length > 0
+                                  ? item.secondHalfAdditions.map((addition: any) => 
+                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
+                                    ).join('')
+                                  : ''
+                              }
+                            `
+                        }
+                      </div>
+                    `
+                    : item.additions && item.additions.length > 0
+                      ? item.additions.map((addition: any) => 
+                          `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
+                        ).join('')
+                      : ''
+                }
+                ${
+                  item.notes || item.observations || item.observation
+                    ? `<div>Obs: ${item.notes || item.observations || item.observation}</div>`
+                    : ''
+                }
+              </div>
+            `).join('<hr>')}
+            <hr>
+            <div class="total">Subtotal: R$ ${
+              (orderData.subtotal || 
+               (orderData.items || []).reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0)
+              ).toFixed(2)
+            }</div>
+            ${
+              orderData.deliveryFee || (orderData.delivery && orderData.delivery.fee)
+                ? `<div>Taxa de entrega: R$ ${
+                    (orderData.deliveryFee || (orderData.delivery && orderData.delivery.fee)).toFixed(2)
+                  }</div>`
+                : ''
+            }
+            ${
+              orderData.discount && orderData.discount > 0
+                ? `<div>Desconto: -R$ ${orderData.discount.toFixed(2)}</div>`
+                : ''
+            }
+            <div class="total large">TOTAL: R$ ${orderData.total.toFixed(2)}</div>
+            <div class="center">* * * * * * * * * * * * * * * *</div>
+            <div class="center">Obrigado pela preferência!</div>
+          </div>
+          
+          <button class="print-button" onclick="window.print();">Imprimir</button>
+          <button class="close-button" onclick="window.close();">Fechar</button>
+          
+          <script>
+            // Função para imprimir automaticamente após 1 segundo
+            setTimeout(function() {
+              // Não imprime automaticamente, aguarda o clique no botão
+              // window.print();
+            }, 1000);
+          </script>
+        </body>
+        </html>
+      `)
       
-      return true
-    } catch (err: any) {
-      setError(`Erro ao imprimir: ${err.message}`)
-      console.error('Erro ao imprimir:', err)
-      return false
-    } finally {
-      // Tentar fechar o dispositivo após a impressão
-      try {
-        if (device.opened) {
-          await device.close()
-        }
-      } catch (e) {
-        console.log('Erro ao fechar conexão com o dispositivo:', e)
-      }
+      printWindow.document.close()
       
+      // Não fechamos a janela automaticamente, o usuário deve clicar em "Fechar" após imprimir
       setIsPrinting(false)
+      
+      return true
+    } catch (err: any) {
+      console.error('Erro ao imprimir:', err)
+      setError(err.message || 'Erro desconhecido ao imprimir')
+      setIsPrinting(false)
+      return false
     }
-  }, [device])
-
+  }, [])
+  
   return {
     isPrinting,
     isSupported,

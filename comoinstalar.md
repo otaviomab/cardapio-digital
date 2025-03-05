@@ -336,6 +336,102 @@ pm2 restart cardapio-digital
 - Verificar logs do Nginx: `tail -f /var/log/nginx/error.log`
 - Verificar se as portas estão abertas: `netstat -tulpn`
 
+### 9.4. Erro 502 Bad Gateway
+- **Sintomas**: Página mostra "502 Bad Gateway" intermitentemente, com erros de "no live upstreams" ou "upstream sent too big header" nos logs do nginx.
+- **Solução**:
+
+  1. **Corrigir configuração do Nginx**:
+  ```bash
+  # Editar o arquivo de configuração do nginx
+  sudo nano /etc/nginx/sites-available/cardapio-digital
+  ```
+  
+  Substituir o conteúdo por:
+  ```nginx
+  server {
+      listen 80;
+      listen [::]:80;
+      server_name delivery.krato.ai;
+      
+      # Redirecionar HTTP para HTTPS
+      return 301 https://$host$request_uri;
+  }
+  
+  server {
+      listen 443 ssl;
+      listen [::]:443 ssl;
+      server_name delivery.krato.ai;
+      
+      # Configurações SSL (ajuste os caminhos conforme necessário)
+      ssl_certificate /etc/letsencrypt/live/delivery.krato.ai/fullchain.pem;
+      ssl_certificate_key /etc/letsencrypt/live/delivery.krato.ai/privkey.pem;
+      include /etc/letsencrypt/options-ssl-nginx.conf;
+      ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+      
+      # Aumentar o buffer para cabeçalhos grandes
+      proxy_buffer_size 128k;
+      proxy_buffers 4 256k;
+      proxy_busy_buffers_size 256k;
+      
+      # Configuração do proxy para o Next.js
+      location / {
+          proxy_pass http://127.0.0.1:3000;  # Use 127.0.0.1 em vez de localhost
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection 'upgrade';
+          proxy_set_header Host $host;
+          proxy_cache_bypass $http_upgrade;
+          proxy_read_timeout 120s;
+          proxy_connect_timeout 120s;
+          
+          # Aumentar o limite de tamanho do cabeçalho
+          proxy_buffer_size 128k;
+          proxy_buffers 4 256k;
+          proxy_busy_buffers_size 256k;
+          client_max_body_size 10M;
+      }
+  }
+  ```
+  
+  2. **Testar e reiniciar o Nginx**:
+  ```bash
+  sudo nginx -t
+  sudo systemctl restart nginx
+  ```
+  
+  3. **Corrigir configuração do NextAuth**:
+  
+  Adicionar ao arquivo `.env`:
+  ```
+  NEXTAUTH_URL=https://delivery.krato.ai
+  NEXTAUTH_SECRET=uma_chave_secreta_forte_e_aleatoria
+  ```
+  
+  Você pode gerar uma chave secreta forte usando:
+  ```bash
+  openssl rand -base64 32
+  ```
+  
+  4. **Corrigir múltiplas instâncias do PM2**:
+  ```bash
+  # Parar todas as instâncias
+  pm2 stop all
+  
+  # Remover todas as instâncias
+  pm2 delete all
+  
+  # Iniciar apenas uma instância com configurações otimizadas
+  pm2 start npm --name "cardapio-digital" -- start --max-memory-restart 1G
+  
+  # Salvar a configuração
+  pm2 save
+  ```
+  
+  5. **Limpar o cache do Next.js**:
+  ```bash
+  rm -rf .next/cache/
+  ```
+
 ## 10. Observações Importantes
 
 1. **Segurança**: 

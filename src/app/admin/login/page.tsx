@@ -176,18 +176,19 @@ export default function AdminLogin() {
       
       console.log('Redirecionando para o dashboard...')
       
+      // Aguarda um tempo para garantir que o token seja processado completamente
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
       // Abordagem mais robusta para o redirecionamento
       try {
-        // Primeiro, tenta usar o router.push
-        router.push('/admin/dashboard')
+        // Primeiro, tenta usar o router.refresh para atualizar o estado da aplicação
+        router.refresh()
         
-        // Como fallback, após um pequeno delay, tenta o redirecionamento via window.location
+        // Depois de um pequeno delay, redireciona para o dashboard
         setTimeout(() => {
-          if (document.location.pathname !== '/admin/dashboard') {
-            console.log('Fallback: redirecionando via window.location')
-            window.location.href = '/admin/dashboard'
-          }
-        }, 1000)
+          console.log('Redirecionando via window.location após refresh')
+          window.location.href = '/admin/dashboard'
+        }, 500)
       } catch (redirectError) {
         console.error('Erro ao redirecionar:', redirectError)
         // Se falhar, usa o método mais direto

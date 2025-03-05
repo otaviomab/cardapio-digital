@@ -46,7 +46,8 @@ export enum RestaurantType {
   RESTAURANT = 'restaurant',
   PIZZARIA = 'pizzaria',
   HAMBURGUERIA = 'hamburgueria',
-  CAFETERIA = 'cafeteria'
+  CAFETERIA = 'cafeteria',
+  OUTROS = 'outros'
 }
 
 export interface Category {

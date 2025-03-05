@@ -1068,7 +1068,9 @@ export default function SettingsPage() {
                           </div>
                           <div className="ml-3">
                             <h4 className="text-sm font-medium text-gray-900">
-                              {value.charAt(0).toUpperCase() + value.slice(1)}
+                              {value === 'restaurant' 
+                                ? 'Restaurante' 
+                                : value.charAt(0).toUpperCase() + value.slice(1)}
                             </h4>
                           </div>
                         </div>

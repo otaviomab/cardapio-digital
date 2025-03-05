@@ -695,7 +695,7 @@ export default function CartPage() {
                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-krato-600" />
                           <span className="text-zinc-600">Calculando...</span>
                         </div>
-                      ) : error && (
+                      ) : error ? (
                         <div className="mt-2 text-red-500 text-sm">
                           {error === 'Endereço fora da área de entrega' ? (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
@@ -709,6 +709,13 @@ export default function CartPage() {
                             error
                           )}
                         </div>
+                      ) : (
+                        <span>
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(fee || 0)}
+                        </span>
                       )}
                     </div>
                   </div>

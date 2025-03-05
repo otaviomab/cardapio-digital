@@ -21,8 +21,7 @@ export async function GET(request: Request) {
 
     // Tratamento especial para o CEP 13053143
     if (destination.includes('13053143')) {
-      console.log('🔍 TRATAMENTO ESPECIAL: CEP 13053143 detectado')
-      // Retorna uma distância fixa de 1.9 km para garantir que esteja na primeira zona (0-2 km)
+      console.log('🔍 TRATAMENTO ESPECIAL: CEP 13053143 detectado, retornando 1.9 km')
       return NextResponse.json({ distance: 1.9 })
     }
 

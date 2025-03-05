@@ -162,6 +162,13 @@ export default function CartPage() {
 
   // Atualiza a taxa de entrega quando o endereço é alterado
   useEffect(() => {
+    console.log('🏁 INICIO - Verificando condições para cálculo:', {
+      orderType,
+      cep: addressData.cep,
+      isDeliverable,
+      error
+    })
+
     console.log('🔍 Verificando condições para cálculo:', {
       orderType,
       addressData,
@@ -181,6 +188,7 @@ export default function CartPage() {
       const fullAddress = `${addressData.street}, ${addressData.number} - ${addressData.neighborhood}, ${addressData.city} - ${addressData.state}, ${addressData.cep}`
       
       console.log('📬 Endereço completo para cálculo:', fullAddress)
+      console.log('📬 CEP específico:', addressData.cep)
       
       // Cria uma função para executar o cálculo com debounce
       const debouncedCalculate = setTimeout(() => {
@@ -687,24 +695,20 @@ export default function CartPage() {
                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-krato-600" />
                           <span className="text-zinc-600">Calculando...</span>
                         </div>
-                      ) : error ? (
-                        <span className="text-red-600">{error}</span>
-                      ) : fee !== null ? (
-                        <div>
-                          <span className="text-zinc-900">
-                            {new Intl.NumberFormat('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL',
-                            }).format(fee)}
-                          </span>
-                          {estimatedTime && (
-                            <p className="text-sm text-zinc-600">
-                              Tempo estimado: {estimatedTime}
-                            </p>
+                      ) : error && (
+                        <div className="mt-2 text-red-500 text-sm">
+                          {error === 'Endereço fora da área de entrega' ? (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                              <p className="font-medium">Endereço fora da área de entrega</p>
+                              <p className="text-xs mt-1">
+                                Verifique se o CEP está correto ou tente um endereço próximo.
+                                Se você estiver muito próximo da nossa área de entrega, entre em contato conosco.
+                              </p>
+                            </div>
+                          ) : (
+                            error
                           )}
                         </div>
-                      ) : (
-                        <span className="text-zinc-600">Selecione um endereço válido</span>
                       )}
                     </div>
                   </div>

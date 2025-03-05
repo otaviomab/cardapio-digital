@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 
 interface UseThermalPrinterReturn {
   isPrinting: boolean;
@@ -11,6 +11,14 @@ interface UseThermalPrinterReturn {
   print: (orderData: any, restaurantName?: string) => Promise<boolean>;
   error: string | null;
 }
+
+// Função auxiliar para formatar moeda
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value);
+};
 
 export function useThermalPrinter(): UseThermalPrinterReturn {
   const [isPrinting, setIsPrinting] = useState(false)
@@ -32,12 +40,146 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
       setIsPrinting(true)
       setError(null)
       
+      // Mapeamento de métodos de pagamento
+      const paymentMethodNames: Record<string, string> = {
+        credit_card: "Cartão de Crédito",
+        debit_card: "Cartão de Débito",
+        pix: "PIX",
+        cash: "Dinheiro",
+        meal_voucher: "Vale-Refeição",
+        // Compatibilidade com formatos antigos
+        credit: "Cartão de Crédito",
+        debit: "Cartão de Débito",
+        wallet: "Vale-Refeição",
+        money: "Dinheiro"
+      }
+      
       // Criar uma janela em tela cheia para garantir que os botões fiquem visíveis
       const printWindow = window.open('', '_blank', 'fullscreen=yes,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes,status=no')
       
       if (!printWindow) {
         throw new Error('Não foi possível abrir janela de impressão')
       }
+      
+      // Obter informações do pedido
+      const orderId = orderData._id || orderData.id || orderData.number || '000';
+      const orderDate = new Date(orderData.createdAt || new Date());
+      const formattedDate = orderDate.toLocaleDateString('pt-BR');
+      const formattedTime = orderDate.toLocaleTimeString('pt-BR');
+      
+      // Informações do cliente
+      const customerName = orderData.customer?.name || 'Cliente';
+      const customerPhone = orderData.customer?.phone || '-';
+      
+      // Tipo de pedido
+      const isDelivery = orderData.orderType === 'delivery' || orderData.deliveryMethod === 'delivery';
+      const orderType = isDelivery ? 'Entrega' : 'Retirada no local';
+      
+      // Endereço de entrega
+      let deliveryAddressHtml = '';
+      const deliveryAddress = orderData.deliveryAddress || orderData.address;
+      
+      if (isDelivery && deliveryAddress) {
+        if (typeof deliveryAddress === 'string') {
+          deliveryAddressHtml = `<div>Endereço: ${deliveryAddress}</div>`;
+        } else {
+          // Formatação detalhada do endereço
+          deliveryAddressHtml = `
+            <div>Endereço: ${deliveryAddress.street}, ${deliveryAddress.number}${
+              deliveryAddress.complement ? ` - ${deliveryAddress.complement}` : ''
+            }</div>
+            <div>Bairro: ${deliveryAddress.neighborhood || '-'}</div>
+            <div>Cidade: ${deliveryAddress.city || '-'}${deliveryAddress.state ? ` - ${deliveryAddress.state}` : ''}</div>
+            ${deliveryAddress.zipCode ? `<div>CEP: ${deliveryAddress.zipCode}</div>` : ''}
+            ${deliveryAddress.reference ? `<div>Referência: ${deliveryAddress.reference}</div>` : ''}
+          `;
+        }
+      }
+      
+      // Informações de pagamento
+      const paymentMethod = orderData.paymentMethod || (orderData.payment && orderData.payment.method) || '-';
+      const formattedPaymentMethod = paymentMethodNames[paymentMethod] || paymentMethod;
+      
+      // Troco
+      const change = orderData.change || (orderData.payment && orderData.payment.change);
+      let changeHtml = '';
+      if ((paymentMethod === 'cash' || paymentMethod === 'money') && change !== undefined) {
+        changeHtml = `<div>Troco para: ${formatCurrency(change)}</div>`;
+      }
+      
+      // Itens do pedido
+      const items = orderData.items || [];
+      let itemsHtml = '';
+      
+      for (const item of items) {
+        itemsHtml += `
+          <div class="item">
+            <div class="bold">${item.quantity}x ${item.name}</div>
+            <div>${formatCurrency(item.price * item.quantity)}</div>
+        `;
+        
+        // Se for meia a meia
+        if (item.isHalfHalf || item.isHalfAndHalf || item.halfHalf) {
+          if (item.halfHalf) {
+            // Nova estrutura com halfHalf
+            itemsHtml += `<div>½ ${item.halfHalf.firstHalf.name}</div>`;
+            
+            // Adicionais da primeira metade
+            if (item.halfHalf.firstHalf.additions && item.halfHalf.firstHalf.additions.length > 0) {
+              for (const addition of item.halfHalf.firstHalf.additions) {
+                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+              }
+            }
+            
+            itemsHtml += `<div>½ ${item.halfHalf.secondHalf.name}</div>`;
+            
+            // Adicionais da segunda metade
+            if (item.halfHalf.secondHalf.additions && item.halfHalf.secondHalf.additions.length > 0) {
+              for (const addition of item.halfHalf.secondHalf.additions) {
+                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+              }
+            }
+          } else if (item.firstHalf && item.secondHalf) {
+            // Estrutura antiga com firstHalf e secondHalf diretamente no item
+            itemsHtml += `<div>½ ${item.firstHalf}</div>`;
+            
+            // Adicionais da primeira metade
+            if (item.firstHalfAdditions && item.firstHalfAdditions.length > 0) {
+              for (const addition of item.firstHalfAdditions) {
+                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+              }
+            }
+            
+            itemsHtml += `<div>½ ${item.secondHalf}</div>`;
+            
+            // Adicionais da segunda metade
+            if (item.secondHalfAdditions && item.secondHalfAdditions.length > 0) {
+              for (const addition of item.secondHalfAdditions) {
+                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+              }
+            }
+          }
+        } 
+        // Adicionais normais (para itens que não são meia a meia)
+        else if (item.additions && item.additions.length > 0) {
+          for (const addition of item.additions) {
+            itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+          }
+        }
+        
+        // Observações do item
+        if (item.notes || item.observations || item.observation) {
+          itemsHtml += `<div>Obs: ${item.notes || item.observations || item.observation}</div>`;
+        }
+        
+        itemsHtml += `</div><hr>`;
+      }
+      
+      // Calcular totais
+      const subtotal = orderData.subtotal || items.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0);
+      const deliveryFee = orderData.deliveryFee || (orderData.delivery && orderData.delivery.fee) || 0;
+      const discount = orderData.discount || 0;
+      const total = orderData.total || (subtotal + deliveryFee - discount);
       
       // Configurar o conteúdo para impressão térmica (largura fixa de 80mm)
       printWindow.document.write(`
@@ -108,6 +250,9 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
               border: 1px solid #ddd;
               border-radius: 4px;
             }
+            .section {
+              margin-bottom: 10px;
+            }
             @media print {
               .print-button, .close-button, .instructions {
                 display: none;
@@ -128,110 +273,43 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
           </div>
           
           <div class="print-container">
+            <!-- Cabeçalho -->
             <div class="center bold large">${restaurantName}</div>
-            <div class="center">${new Date().toLocaleString()}</div>
-            <div class="center bold">PEDIDO #${orderData._id || orderData.id || '000'}</div>
+            <div class="center">${formattedDate} ${formattedTime}</div>
+            <div class="center bold">PEDIDO #${orderId}</div>
             <hr>
-            <div>Cliente: ${orderData.customer?.name || 'Cliente'}</div>
-            <div>Telefone: ${orderData.customer?.phone || '-'}</div>
-            <div>Tipo: ${
-              (orderData.orderType === 'delivery' || orderData.deliveryMethod === 'delivery')
-                ? 'Entrega'
-                : 'Retirada'
-            }</div>
-            ${(orderData.orderType === 'delivery' || orderData.deliveryMethod === 'delivery') && orderData.deliveryAddress 
-              ? `<div>Endereço: ${
-                  typeof orderData.deliveryAddress === 'string' 
-                    ? orderData.deliveryAddress 
-                    : `${orderData.deliveryAddress.street}, ${orderData.deliveryAddress.number}${
-                        orderData.deliveryAddress.complement ? ` - ${orderData.deliveryAddress.complement}` : ''
-                      }, ${orderData.deliveryAddress.neighborhood}, ${orderData.deliveryAddress.city}`
-                }</div>` 
-              : ''}
+            
+            <!-- Informações do Cliente -->
+            <div class="section">
+              <div class="bold">CLIENTE:</div>
+              <div>Nome: ${customerName}</div>
+              <div>Telefone: ${customerPhone}</div>
+            </div>
+            
+            <!-- Tipo de Pedido -->
+            <div class="section">
+              <div class="bold">TIPO DE PEDIDO:</div>
+              <div>${orderType}</div>
+              ${isDelivery ? deliveryAddressHtml : ''}
+            </div>
+            
+            <!-- Forma de Pagamento -->
+            <div class="section">
+              <div class="bold">PAGAMENTO:</div>
+              <div>${formattedPaymentMethod}</div>
+              ${changeHtml}
+            </div>
             <hr>
+            
+            <!-- Itens do Pedido -->
             <div class="bold">ITENS DO PEDIDO:</div>
-            ${(orderData.items || []).map((item: any) => `
-              <div class="item">
-                <div class="bold">${item.quantity}x ${item.name}</div>
-                <div>R$ ${(item.price * item.quantity).toFixed(2)}</div>
-                ${
-                  // Verificar se é meia a meia
-                  item.isHalfHalf || item.isHalfAndHalf || item.halfHalf
-                    ? `
-                      <div>
-                        ${
-                          item.halfHalf
-                            ? `
-                              <div>½ ${item.halfHalf.firstHalf.name}</div>
-                              ${
-                                item.halfHalf.firstHalf.additions && item.halfHalf.firstHalf.additions.length > 0
-                                  ? item.halfHalf.firstHalf.additions.map((addition: any) => 
-                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
-                                    ).join('')
-                                  : ''
-                              }
-                              <div>½ ${item.halfHalf.secondHalf.name}</div>
-                              ${
-                                item.halfHalf.secondHalf.additions && item.halfHalf.secondHalf.additions.length > 0
-                                  ? item.halfHalf.secondHalf.additions.map((addition: any) => 
-                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
-                                    ).join('')
-                                  : ''
-                              }
-                            `
-                            : `
-                              <div>½ ${item.firstHalf}</div>
-                              ${
-                                item.firstHalfAdditions && item.firstHalfAdditions.length > 0
-                                  ? item.firstHalfAdditions.map((addition: any) => 
-                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
-                                    ).join('')
-                                  : ''
-                              }
-                              <div>½ ${item.secondHalf}</div>
-                              ${
-                                item.secondHalfAdditions && item.secondHalfAdditions.length > 0
-                                  ? item.secondHalfAdditions.map((addition: any) => 
-                                      `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
-                                    ).join('')
-                                  : ''
-                              }
-                            `
-                        }
-                      </div>
-                    `
-                    : item.additions && item.additions.length > 0
-                      ? item.additions.map((addition: any) => 
-                          `<div>&nbsp;&nbsp;+ ${addition.name}</div>`
-                        ).join('')
-                      : ''
-                }
-                ${
-                  item.notes || item.observations || item.observation
-                    ? `<div>Obs: ${item.notes || item.observations || item.observation}</div>`
-                    : ''
-                }
-              </div>
-            `).join('<hr>')}
-            <hr>
-            <div class="total">Subtotal: R$ ${
-              (orderData.subtotal || 
-               (orderData.items || []).reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0)
-              ).toFixed(2)
-            }</div>
-            ${
-              orderData.deliveryFee || (orderData.delivery && orderData.delivery.fee)
-                ? `<div>Taxa de entrega: R$ ${
-                    (orderData.deliveryFee || (orderData.delivery && orderData.delivery.fee)).toFixed(2)
-                  }</div>`
-                : ''
-            }
-            ${
-              orderData.discount && orderData.discount > 0
-                ? `<div>Desconto: -R$ ${orderData.discount.toFixed(2)}</div>`
-                : ''
-            }
-            <div class="total large">TOTAL: R$ ${orderData.total.toFixed(2)}</div>
+            ${itemsHtml}
+            
+            <!-- Totais -->
+            <div class="total">Subtotal: ${formatCurrency(subtotal)}</div>
+            ${deliveryFee > 0 ? `<div>Taxa de entrega: ${formatCurrency(deliveryFee)}</div>` : ''}
+            ${discount > 0 ? `<div>Desconto: -${formatCurrency(discount)}</div>` : ''}
+            <div class="total large">TOTAL: ${formatCurrency(total)}</div>
             <div class="center">* * * * * * * * * * * * * * * *</div>
             <div class="center">Obrigado pela preferência!</div>
           </div>

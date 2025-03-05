@@ -42,20 +42,7 @@ export function useDeliveryFee(
       deliveryZones,
       lastCalculation: lastCalculation.current
     })
-
-    // Se não houver zonas de entrega configuradas, usa uma zona padrão
-    if (!deliveryZones || deliveryZones.length === 0) {
-      console.log('⚠️ Nenhuma zona de entrega configurada, usando zona padrão')
-      deliveryZones = [{
-        id: 'default',
-        minDistance: 0,
-        maxDistance: 5,
-        fee: 5,
-        estimatedTime: '30-45 min',
-        active: true
-      }]
-    }
-
+    
     // Se o endereço for o mesmo que o último calculado E já sabemos que está fora da área
     if (
       destinationAddress === lastCalculation.current.address && 
@@ -70,6 +57,25 @@ export function useDeliveryFee(
       console.log('🔄 Mesmo endereço que o último cálculo válido, retornando...')
       return
     }
+
+    // Se não houver zonas de entrega configuradas, usa uma zona padrão
+    if (!deliveryZones || deliveryZones.length === 0) {
+      console.log('⚠️ Nenhuma zona de entrega configurada, usando zona padrão')
+      deliveryZones = [{
+        id: 'default',
+        minDistance: 0,
+        maxDistance: 5,
+        fee: 5,
+        estimatedTime: '30-45 min',
+        active: true
+      }]
+    }
+
+    // DEBUG: Log de zonas de entrega
+    console.log('📋 ZONAS DE ENTREGA DISPONÍVEIS:')
+    deliveryZones.forEach(zone => {
+      console.log(`- ZONA ID: ${zone.id}, MIN: ${zone.minDistance}km, MAX: ${zone.maxDistance}km, TAXA: R$${zone.fee}, ATIVA: ${zone.active}`)
+    })
 
     if (!restaurantAddress || !destinationAddress) {
       console.log('❌ Endereços inválidos:', { restaurantAddress, destinationAddress })
@@ -111,13 +117,58 @@ export function useDeliveryFee(
       console.log('🔍 Procurando zona de entrega para distância:', distanceInKm, 'km')
       console.log('📍 Zonas disponíveis:', deliveryZones)
 
-      const zone = deliveryZones.find(
-        zone => zone.active && 
-        distanceInKm >= zone.minDistance && 
-        distanceInKm <= zone.maxDistance
-      )
+      // Arredonda a distância para 2 casas decimais para evitar problemas de precisão
+      const roundedDistance = Math.round(distanceInKm * 100) / 100
+      console.log('🔢 Distância arredondada para comparação:', roundedDistance, 'km')
 
-      console.log('🎯 Zona de entrega encontrada:', zone)
+      // Margem de tolerância para endereços próximos aos limites das zonas
+      const toleranceMargin = 0.3 // 300 metros em km
+      console.log(`🔍 Usando margem de tolerância de ${toleranceMargin}km (${toleranceMargin * 1000}m)`)
+      
+      // Encontra todas as zonas que poderiam atender com a tolerância
+      const matchingZones = deliveryZones.filter(
+        zone => {
+          // Verifica se a zona está ativa
+          if (!zone.active) {
+            console.log(`- ZONA ID: ${zone.id} - INATIVA, ignorando`);
+            return false;
+          }
+          
+          // Caso 1: Dentro da zona normalmente
+          const withinZone = roundedDistance >= zone.minDistance && roundedDistance <= zone.maxDistance;
+          
+          // Caso 2: Dentro da zona com tolerância
+          const withinZoneWithTolerance = 
+            roundedDistance >= (zone.minDistance - toleranceMargin) && 
+            roundedDistance <= (zone.maxDistance + toleranceMargin);
+          
+          // Caso 3: Exatamente na fronteira entre zonas
+          const onZoneBoundary = 
+            Math.abs(roundedDistance - zone.minDistance) < 0.05 || 
+            Math.abs(roundedDistance - zone.maxDistance) < 0.05;
+            
+          const zoneFits = withinZone || withinZoneWithTolerance || onZoneBoundary;
+            
+          console.log(`- ZONA ID: ${zone.id}, MIN: ${zone.minDistance}km, MAX: ${zone.maxDistance}km - CORRESPONDE: ${zoneFits ? 'SIM' : 'NÃO'}`);
+          console.log(`  • Dentro da zona: ${withinZone ? 'SIM' : 'NÃO'}`);
+          console.log(`  • Dentro com tolerância: ${withinZoneWithTolerance ? 'SIM' : 'NÃO'}`);
+          console.log(`  • Na fronteira: ${onZoneBoundary ? 'SIM' : 'NÃO'}`);
+          
+          return zoneFits;
+        }
+      );
+
+      console.log('🎯 Zonas correspondentes encontradas:', matchingZones.length ? matchingZones : 'Nenhuma');
+
+      // Se encontrou múltiplas zonas, seleciona a mais favorável (menor taxa)
+      let zone = null;
+      if (matchingZones.length > 0) {
+        // Ordena por taxa (menor primeiro) e pega a primeira
+        zone = matchingZones.sort((a, b) => a.fee - b.fee)[0];
+        console.log(`✅ Zona selecionada: ID: ${zone.id}, MIN: ${zone.minDistance}km, MAX: ${zone.maxDistance}km, TAXA: R$${zone.fee}`);
+      } else {
+        console.log('❌ Nenhuma zona correspondente encontrada para a distância calculada');
+      }
 
       // Atualiza o último endereço calculado
       lastCalculation.current = {
@@ -144,34 +195,24 @@ export function useDeliveryFee(
       setEstimatedTime(zone.estimatedTime)
       setIsDeliverable(true)
       setError(null)
-    } catch (err) {
-      console.error('❌ Erro no cálculo:', err)
+    } catch (error) {
+      console.error('❌ Erro ao calcular taxa de entrega:', error)
       setFee(null)
       setEstimatedTime(null)
       setIsDeliverable(false)
-      setError(err instanceof Error ? err.message : 'Erro ao calcular taxa de entrega')
-      
-      // Limpa o status de fora de área em caso de erro
-      lastCalculation.current = {
-        address: destinationAddress
-      }
+      setError('Erro ao calcular taxa de entrega')
     } finally {
       setIsLoading(false)
     }
   }, [restaurantAddress, deliveryZones])
 
-  // Limpa os estados quando o endereço do restaurante ou as zonas mudam
+  // Verifica se o restaurante tem endereço e zonas de entrega configuradas
   useEffect(() => {
     if (!restaurantAddress || (!deliveryZones || deliveryZones.length === 0)) {
-      console.log('🔄 Resetando estados pois não há endereço ou zonas:', {
-        temRestaurante: !!restaurantAddress,
+      console.log('⚠️ Restaurante sem endereço ou zonas de entrega configuradas:', {
+        temEndereco: !!restaurantAddress,
         temZonas: deliveryZones && deliveryZones.length > 0
       })
-      setFee(null)
-      setEstimatedTime(null)
-      setIsDeliverable(false)
-      setError(null)
-      lastCalculation.current = { address: '' }
     }
   }, [restaurantAddress, deliveryZones])
 

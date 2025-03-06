@@ -7,19 +7,29 @@ import { toast } from 'react-hot-toast'
 /**
  * Componente para gerenciar o cache de coordenadas e distâncias
  * Permite visualizar o tamanho do cache e limpá-lo quando necessário
+ * Este componente só é exibido em ambiente de desenvolvimento
  */
 export function CacheManager() {
   const [coordsCacheSize, setCoordsCacheSize] = useState<number>(0)
   const [distanceCacheSize, setDistanceCacheSize] = useState<number>(0)
   const [isOpen, setIsOpen] = useState<boolean>(false)
+  const [isDev, setIsDev] = useState<boolean>(false)
 
-  // Atualiza o tamanho do cache quando o componente é montado
+  // Verifica se está em ambiente de desenvolvimento
   useEffect(() => {
     // Só executa no cliente
     if (typeof window !== 'undefined') {
-      updateCacheSizes()
+      // Verifica se está em ambiente de desenvolvimento
+      const isDevEnvironment = 
+        process.env.NODE_ENV === 'development' || 
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.href.includes('debug');
+      
+      setIsDev(isDevEnvironment);
+      updateCacheSizes();
     }
-  }, [])
+  }, []);
 
   // Atualiza o tamanho do cache
   const updateCacheSizes = () => {
@@ -47,6 +57,11 @@ export function CacheManager() {
     distanceCache.clear()
     updateCacheSizes()
     toast.success('Todos os caches foram limpos com sucesso')
+  }
+
+  // Se não estiver em ambiente de desenvolvimento, não renderiza nada
+  if (!isDev) {
+    return null;
   }
 
   if (!isOpen) {

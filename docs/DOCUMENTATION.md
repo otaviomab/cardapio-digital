@@ -9,6 +9,7 @@
 6. [Funcionalidades Implementadas](#funcionalidades-implementadas)
 7. [APIs e Integrações](#apis-e-integrações)
 8. [Arquitetura](#arquitetura)
+9. [Otimizações Implementadas](#otimizações-implementadas)
 
 ## Visão Geral
 
@@ -370,6 +371,179 @@ Utilizado para:
    - Polling otimizado
    - WebSockets (pedidos)
    - Estado local
+
+## Otimizações Implementadas
+
+### 1. Centralização da Lógica de Cálculo
+
+Implementamos um serviço centralizado para cálculo de distância, evitando duplicação de código e facilitando a manutenção.
+
+```typescript
+// src/services/distanceService.ts
+export async function calculateDistance(origin: string, destination: string): Promise<number> {
+  // Implementação centralizada
+}
+```
+
+**Benefícios:**
+- Código mais organizado e fácil de manter
+- Alterações futuras na lógica de cálculo só precisam ser feitas em um lugar
+- Melhor tratamento de erros e consistência nas respostas
+
+### 2. Tratamento de Erros Mais Robusto
+
+Criamos classes de erros específicos para diferentes situações, permitindo um tratamento mais preciso e mensagens mais informativas.
+
+```typescript
+// src/services/errors.ts
+export class AddressNotFoundError extends AppError {
+  constructor(address: string) {
+    super(`Endereço não encontrado: ${address}`);
+    this.name = 'AddressNotFoundError';
+  }
+}
+```
+
+**Benefícios:**
+- Mensagens de erro mais claras e específicas
+- Tratamento diferenciado para cada tipo de erro
+- Códigos HTTP apropriados nas respostas da API
+- Melhor experiência para o usuário
+
+### 3. Cache de Coordenadas Geográficas
+
+Implementamos um sistema de cache para armazenar coordenadas e distâncias já consultadas, reduzindo o número de requisições à API do Google Maps.
+
+```typescript
+// src/services/cacheService.ts
+export const coordinatesCache = new CoordinatesCache();
+export const distanceCache = new DistanceCache();
+```
+
+**Benefícios:**
+- Redução significativa de custos com a API do Google Maps
+- Melhor desempenho para endereços frequentemente consultados
+- Experiência offline parcial para dados já consultados
+- Interface de gerenciamento de cache para desenvolvedores
+
+### 4. Validação de CEP Mais Completa
+
+Melhoramos a validação de CEP para verificar não apenas o formato, mas também se o CEP existe na base dos Correios.
+
+```typescript
+// src/services/cepService.ts
+export async function validateCep(cep: string): Promise<{
+  isValid: boolean;
+  formattedCep?: string;
+  error?: string;
+}> {
+  // Implementação completa
+}
+```
+
+**Benefícios:**
+- Validação mais precisa de CEPs
+- Feedback imediato sobre a validade do CEP
+- Redução de erros no preenchimento de endereços
+- Componente reutilizável para entrada de CEP
+
+### 5. Tolerância em Limites de Zonas
+
+Implementamos um sistema de tolerância para lidar com endereços na fronteira entre zonas de entrega.
+
+```typescript
+// src/services/zoneService.ts
+export function isInZone(
+  distance: number,
+  zone: DeliveryZone,
+  toleranceKm: number = DEFAULT_TOLERANCE_KM
+): {
+  isInZone: boolean;
+  isExactlyInZone: boolean;
+  isInZoneWithTolerance: boolean;
+  isOnBoundary: boolean;
+} {
+  // Implementação com tolerância
+}
+```
+
+**Benefícios:**
+- Classificação mais precisa de endereços na fronteira entre zonas
+- Redução de casos de endereços incorretamente classificados como fora da área de entrega
+- Visualização clara das zonas e da tolerância
+- Configuração ajustável da tolerância
+
+### 6. Algoritmos de Distância Mais Precisos
+
+Implementamos diferentes algoritmos para cálculo de distância, desde aproximações rápidas até cálculos precisos.
+
+```typescript
+// src/services/distanceCalculationService.ts
+export function calculateOptimalDistance(
+  point1: Coordinates,
+  point2: Coordinates
+): number {
+  // Escolhe o algoritmo mais adequado com base na distância estimada
+}
+```
+
+**Benefícios:**
+- Redução de custos com a API do Google Maps
+- Cálculos mais rápidos para distâncias curtas
+- Sistema continua funcionando mesmo se a API do Google estiver indisponível
+- Página de debug para analisar e comparar os diferentes algoritmos
+
+### 7. Proteção de Componentes e Rotas de Debug
+
+Implementamos proteção para componentes e rotas de debug, garantindo que não sejam acessíveis em produção.
+
+```typescript
+// src/components/cache-manager.tsx
+export function CacheManager() {
+  const [isDev, setIsDev] = useState<boolean>(false);
+
+  // Verifica se está em ambiente de desenvolvimento
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isDevEnvironment = 
+        process.env.NODE_ENV === 'development' || 
+        window.location.hostname === 'localhost';
+      
+      setIsDev(isDevEnvironment);
+    }
+  }, []);
+
+  // Se não estiver em ambiente de desenvolvimento, não renderiza nada
+  if (!isDev) {
+    return null;
+  }
+
+  // Resto do componente
+}
+```
+
+```typescript
+// src/middleware.ts
+export function middleware(request: NextRequest) {
+  // Verifica se é uma rota protegida
+  const isProtectedRoute = PROTECTED_ROUTES.some(route => 
+    request.nextUrl.pathname.startsWith(route)
+  );
+
+  // Se for uma rota protegida e estiver em produção, redireciona para a página inicial
+  if (isProtectedRoute && process.env.NODE_ENV === 'production') {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Resto do middleware
+}
+```
+
+**Benefícios:**
+- Componentes de debug não são exibidos para usuários finais
+- Rotas de debug não são acessíveis em produção
+- Sistema continua funcionando normalmente em ambiente de desenvolvimento
+- Melhor segurança e experiência do usuário
 
 ## Próximos Passos
 

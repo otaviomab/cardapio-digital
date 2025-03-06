@@ -12,6 +12,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { useRestaurantHours } from '@/hooks/useRestaurantHours'
 import { useDeliveryFee } from '@/hooks/useDeliveryFee'
 import { useSupabase } from '@/contexts/SupabaseContext'
+import { fetchAddressByCep } from '@/lib/address'
+import { InvalidCepError, AddressNotFoundError } from '@/services/errors'
+import { toast } from 'react-hot-toast'
+import { fetchAddressWithValidation, formatCep } from '@/services/cepService'
 
 type OrderType = 'delivery' | 'pickup' | null
 
@@ -221,20 +225,53 @@ export default function CartPage() {
     if (cep.length === 8) {
       setIsLoadingCep(true)
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
-        const data = await response.json()
-
-        if (!data.erro) {
+        // Usa a função com validação completa
+        const result = await fetchAddressWithValidation(cep)
+        
+        if (result.isValid && result.address) {
+          // Atualiza os dados do endereço
           setAddressData(prev => ({
             ...prev,
-            street: data.logradouro,
-            neighborhood: data.bairro,
-            city: data.localidade,
-            state: data.uf
+            cep: result.address.zipCode,
+            street: result.address.street,
+            neighborhood: result.address.neighborhood,
+            city: result.address.city,
+            state: result.address.state
+          }))
+        } else {
+          // Exibe mensagem de erro
+          toast.error(result.error || 'Erro ao buscar CEP')
+          
+          // Limpa os campos de endereço para preenchimento manual
+          setAddressData(prev => ({
+            ...prev,
+            cep: formatCep(cep), // Mantém o CEP formatado
+            street: '',
+            neighborhood: '',
+            city: '',
+            state: ''
           }))
         }
       } catch (error) {
         console.error('Erro ao buscar CEP:', error)
+        
+        // Tratamento específico para cada tipo de erro
+        if (error instanceof InvalidCepError) {
+          toast.error('CEP inválido. Verifique o número informado.')
+        } else if (error instanceof AddressNotFoundError) {
+          toast.error('CEP não encontrado. Verifique o número ou preencha o endereço manualmente.')
+        } else {
+          toast.error('Erro ao buscar CEP. Tente novamente ou preencha o endereço manualmente.')
+        }
+        
+        // Limpa os campos de endereço para preenchimento manual
+        setAddressData(prev => ({
+          ...prev,
+          street: '',
+          neighborhood: '',
+          city: '',
+          state: ''
+        }))
       } finally {
         setIsLoadingCep(false)
       }

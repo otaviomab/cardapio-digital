@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { DeliveryZone } from '@/types/delivery'
+import { findMatchingZones, findBestZone, DEFAULT_TOLERANCE_KM } from '@/services/zoneService'
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const cep = searchParams.get('cep') || '13053143'
+    const toleranceParam = searchParams.get('tolerance')
+    const toleranceKm = toleranceParam ? parseFloat(toleranceParam) : DEFAULT_TOLERANCE_KM
     
-    console.log('🔍 API DEBUG-CEP: Iniciando teste para CEP:', cep)
+    console.log('🔍 API DEBUG-CEP: Iniciando teste para CEP:', cep, 'com tolerância de', toleranceKm, 'km')
     
     // Endereço do restaurante
     const restaurantAddress = {
@@ -69,59 +72,35 @@ export async function GET(request: Request) {
     console.log('🔢 Distância arredondada:', roundedDistance, 'km')
     
     // Testa com diferentes margens de tolerância
-    const toleranceMargins = [0, 0.1, 0.3, 0.5, 1.0]
+    const toleranceMargins = [0, 0.1, 0.2, 0.3, 0.5, 1.0]
     const results = {}
     
     for (const toleranceMargin of toleranceMargins) {
       console.log(`\n🔍 Testando com margem de tolerância de ${toleranceMargin}km:`)
       
       // Encontra todas as zonas que poderiam atender com a tolerância
-      const matchingZones = deliveryZones.filter(zone => {
-        // Verifica se a zona está ativa
-        if (!zone.active) {
-          console.log(`- ZONA ID: ${zone.id} - INATIVA, ignorando`)
-          return false
-        }
-        
-        // Caso 1: Dentro da zona normalmente
-        const withinZone = roundedDistance >= zone.minDistance && roundedDistance <= zone.maxDistance
-        
-        // Caso 2: Dentro da zona com tolerância
-        const withinZoneWithTolerance = 
-          roundedDistance >= (zone.minDistance - toleranceMargin) && 
-          roundedDistance <= (zone.maxDistance + toleranceMargin)
-        
-        // Caso 3: Exatamente na fronteira entre zonas
-        const onZoneBoundary = 
-          Math.abs(roundedDistance - zone.minDistance) < 0.05 || 
-          Math.abs(roundedDistance - zone.maxDistance) < 0.05
-          
-        const zoneFits = withinZone || withinZoneWithTolerance || onZoneBoundary
-          
-        console.log(`- ZONA ID: ${zone.id}, MIN: ${zone.minDistance}km, MAX: ${zone.maxDistance}km - CORRESPONDE: ${zoneFits ? 'SIM' : 'NÃO'}`)
-        console.log(`  • Dentro da zona: ${withinZone ? 'SIM' : 'NÃO'}`)
-        console.log(`  • Dentro com tolerância: ${withinZoneWithTolerance ? 'SIM' : 'NÃO'}`)
-        console.log(`  • Na fronteira: ${onZoneBoundary ? 'SIM' : 'NÃO'}`)
-        
-        return zoneFits
-      })
+      const matchingZonesResult = findMatchingZones(roundedDistance, deliveryZones, toleranceMargin)
       
-      console.log('🎯 Zonas correspondentes encontradas:', matchingZones.length ? matchingZones : 'Nenhuma')
+      console.log('🎯 Zonas correspondentes encontradas:', matchingZonesResult.length ? matchingZonesResult : 'Nenhuma')
       
-      // Se encontrou múltiplas zonas, seleciona a mais favorável (menor taxa)
-      let zone = null
-      if (matchingZones.length > 0) {
-        // Ordena por taxa (menor primeiro) e pega a primeira
-        zone = matchingZones.sort((a, b) => a.fee - b.fee)[0]
-        console.log(`✅ Zona selecionada: ID: ${zone.id}, MIN: ${zone.minDistance}km, MAX: ${zone.maxDistance}km, TAXA: R$${zone.fee}`)
+      // Encontra a melhor zona
+      const bestZone = findBestZone(roundedDistance, deliveryZones, toleranceMargin)
+      
+      if (bestZone) {
+        console.log(`✅ Zona selecionada: ID: ${bestZone.id}, MIN: ${bestZone.minDistance}km, MAX: ${bestZone.maxDistance}km, TAXA: R$${bestZone.fee}`)
       } else {
         console.log('❌ Nenhuma zona correspondente encontrada para a distância calculada')
       }
       
       results[`tolerancia_${toleranceMargin}`] = {
-        zonaEncontrada: !!zone,
-        zona: zone,
-        zonasFiltradas: matchingZones.length
+        zonaEncontrada: !!bestZone,
+        zona: bestZone,
+        zonasFiltradas: matchingZonesResult.map(match => ({
+          zone: match.zone,
+          isExactlyInZone: match.isExactlyInZone,
+          isInZoneWithTolerance: match.isInZoneWithTolerance,
+          isOnBoundary: match.isOnBoundary
+        }))
       }
     }
     
@@ -130,7 +109,8 @@ export async function GET(request: Request) {
       distancia: distanceInKm,
       distanciaArredondada: roundedDistance,
       zonas: deliveryZones,
-      resultados: results
+      resultados: results,
+      toleranciaPadrao: DEFAULT_TOLERANCE_KM
     })
   } catch (error) {
     console.error('❌ Erro ao testar CEP:', error)

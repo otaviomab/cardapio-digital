@@ -1,4 +1,12 @@
 import { NextResponse } from 'next/server'
+import { calculateDistance } from '@/services/distanceService'
+import { 
+  InvalidParametersError, 
+  DistanceCalculationError, 
+  GoogleApiError, 
+  AddressNotFoundError,
+  AppError
+} from '@/services/errors'
 
 export async function GET(request: Request) {
   try {
@@ -19,56 +27,44 @@ export async function GET(request: Request) {
       )
     }
 
-    // Tratamento especial para o CEP 13053143
-    if (destination.includes('13053143')) {
-      console.log('🔍 TRATAMENTO ESPECIAL: CEP 13053143 detectado, retornando 1.9 km')
-      return NextResponse.json({ distance: 1.9 })
-    }
-
-    // Faz a requisição para a API do Google
-    console.log('🌐 Enviando requisição para Google Maps API')
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(
-        origin
-      )}&destinations=${encodeURIComponent(
-        destination
-      )}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-    )
-
-    const data = await response.json()
-    console.log('📡 Resposta do Google Maps API:', data)
-
-    // Verifica se a resposta é válida
-    if (
-      !data.rows?.[0]?.elements?.[0]?.distance?.value ||
-      data.rows[0].elements[0].status === 'ZERO_RESULTS'
-    ) {
-      console.log('❌ Erro: Não foi possível calcular a distância')
-      return NextResponse.json(
-        { error: 'Não foi possível calcular a distância' },
-        { status: 400 }
-      )
-    }
-
-    // Retorna a distância em quilômetros
-    const distanceInMeters = data.rows[0].elements[0].distance.value
-    const distanceInKm = distanceInMeters / 1000
+    // Usa o serviço centralizado para calcular a distância
+    const roundedDistance = await calculateDistance(origin, destination)
     
-    // Arredonda para duas casas decimais para evitar problemas de comparação
-    const roundedDistance = Math.round(distanceInKm * 100) / 100
-    
-    console.log('✅ Cálculo concluído:', {
-      distanceInMeters,
-      distanceInKm,
-      roundedDistance
-    })
-
     return NextResponse.json({ distance: roundedDistance })
   } catch (error) {
     console.error('❌ Erro ao calcular distância:', error)
-    return NextResponse.json(
-      { error: 'Erro ao calcular distância' },
-      { status: 500 }
-    )
+    
+    // Tratamento específico para cada tipo de erro
+    if (error instanceof InvalidParametersError) {
+      return NextResponse.json(
+        { error: error.message, errorType: error.name },
+        { status: 400 }
+      )
+    } else if (error instanceof AddressNotFoundError) {
+      return NextResponse.json(
+        { error: error.message, errorType: error.name },
+        { status: 404 }
+      )
+    } else if (error instanceof GoogleApiError) {
+      return NextResponse.json(
+        { error: error.message, errorType: error.name, status: error.status },
+        { status: 502 } // Bad Gateway - erro no serviço externo
+      )
+    } else if (error instanceof DistanceCalculationError) {
+      return NextResponse.json(
+        { error: error.message, errorType: error.name },
+        { status: 422 } // Unprocessable Entity - não foi possível processar
+      )
+    } else if (error instanceof AppError) {
+      return NextResponse.json(
+        { error: error.message, errorType: error.name },
+        { status: 500 }
+      )
+    } else {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Erro ao calcular distância' },
+        { status: 500 }
+      )
+    }
   }
 } 

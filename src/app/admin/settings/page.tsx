@@ -17,7 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { useSupabase } from '@/contexts/SupabaseContext'
 import { PatternFormat } from 'react-number-format'
 import { DeliveryZones } from './components/delivery-zones'
-import { getAddressCoordinates } from '@/lib/delivery'
+import { getAddressCoordinates } from '@/services/distanceService'
 import { DeliveryZone } from '@/types/delivery'
 import { ImageUpload } from '@/components/image-upload'
 import { fetchAddressByCep } from '@/lib/address'
@@ -31,6 +31,9 @@ import {
   type WeekDay,
   type OpeningHour
 } from '@/lib/hours-validation'
+import { InvalidCepError, AddressNotFoundError } from '@/services/errors'
+import { toast } from 'react-hot-toast'
+import { fetchAddressWithValidation, formatCep } from '@/services/cepService'
 
 interface RestaurantSettings {
   name: string
@@ -617,20 +620,49 @@ export default function SettingsPage() {
 
                       if (newCep.replace(/\D/g, '').length === 8) {
                         try {
-                          const addressData = await fetchAddressByCep(newCep)
-                          setSettings(prev => ({
-                            ...prev,
-                            address: {
-                              ...prev.address,
-                              street: addressData.street || '',
-                              neighborhood: addressData.neighborhood || '',
-                              city: addressData.city || '',
-                              state: addressData.state || '',
-                              zipCode: addressData.zipCode || ''
-                            }
-                          }))
+                          // Usa a função com validação completa
+                          const result = await fetchAddressWithValidation(newCep)
+                          
+                          if (result.isValid && result.address) {
+                            // Atualiza os dados do endereço
+                            setSettings(prev => ({
+                              ...prev,
+                              address: {
+                                ...prev.address,
+                                street: result.address.street || '',
+                                neighborhood: result.address.neighborhood || '',
+                                city: result.address.city || '',
+                                state: result.address.state || '',
+                                zipCode: result.address.zipCode || ''
+                              }
+                            }))
+                          } else {
+                            // Exibe mensagem de erro
+                            toast.error(result.error || 'Erro ao buscar CEP')
+                            
+                            // Limpa os campos de endereço para preenchimento manual
+                            setSettings(prev => ({
+                              ...prev,
+                              address: {
+                                ...prev.address,
+                                zipCode: formatCep(newCep), // Mantém o CEP formatado
+                                street: '',
+                                neighborhood: '',
+                                city: '',
+                                state: ''
+                              }
+                            }))
+                          }
                         } catch (error) {
-                          alert(error instanceof Error ? error.message : 'Erro ao buscar CEP')
+                          // Tratamento específico para cada tipo de erro
+                          if (error instanceof InvalidCepError) {
+                            toast.error('CEP inválido. Verifique o número informado.')
+                          } else if (error instanceof AddressNotFoundError) {
+                            toast.error('CEP não encontrado. Verifique o número ou preencha o endereço manualmente.')
+                          } else {
+                            toast.error('Erro ao buscar CEP. Tente novamente ou preencha o endereço manualmente.')
+                          }
+                          
                           setSettings(prev => ({
                             ...prev,
                             address: {

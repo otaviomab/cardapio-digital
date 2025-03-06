@@ -1,3 +1,9 @@
+import { InvalidCepError, AddressNotFoundError } from '@/services/errors'
+import { 
+  fetchAddressByCep as fetchAddressByCepService, 
+  AddressData 
+} from '@/services/cepService'
+
 interface ViaCepResponse {
   cep: string
   logradouro: string
@@ -9,6 +15,7 @@ interface ViaCepResponse {
   gia: string
   ddd: string
   siafi: string
+  erro?: boolean
 }
 
 interface AddressData {
@@ -19,37 +26,7 @@ interface AddressData {
   zipCode: string
 }
 
+// Re-exporta a função do serviço para manter compatibilidade
 export async function fetchAddressByCep(cep: string): Promise<AddressData> {
-  try {
-    // Remove caracteres não numéricos do CEP
-    const cleanCep = cep.replace(/\D/g, '')
-
-    // Valida o formato do CEP
-    if (cleanCep.length !== 8) {
-      throw new Error('CEP inválido')
-    }
-
-    // Faz a requisição para a API do ViaCEP
-    const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-    const data = await response.json() as ViaCepResponse
-
-    // Verifica se a API retornou erro
-    if (data.erro) {
-      throw new Error('CEP não encontrado')
-    }
-
-    // Retorna os dados formatados
-    return {
-      street: data.logradouro,
-      neighborhood: data.bairro,
-      city: data.localidade,
-      state: data.uf,
-      zipCode: data.cep
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Erro ao buscar CEP: ${error.message}`)
-    }
-    throw new Error('Erro ao buscar CEP')
-  }
+  return fetchAddressByCepService(cep)
 } 

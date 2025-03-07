@@ -1,7 +1,7 @@
 'use client'
 
 import { createBrowserClient } from '@supabase/ssr'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { createContext, useContext, useEffect, useState } from 'react'
 
 const Context = createContext<any>(null)
@@ -15,19 +15,20 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   )
 
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Mudança de estado de autenticação:', event)
+      console.log('Mudança de estado de autenticação:', event, 'Pathname atual:', pathname)
       
       // Atualiza o estado da aplicação
       router.refresh()
       
-      // Se o usuário fez logout, redireciona para a página de login
-      if (event === 'SIGNED_OUT') {
-        console.log('Usuário deslogado, redirecionando para login')
+      // Se o usuário fez logout, redireciona para a página de login apenas se estiver na área admin
+      if (event === 'SIGNED_OUT' && pathname?.startsWith('/admin')) {
+        console.log('Usuário deslogado na área admin, redirecionando para login')
         router.push('/admin/login')
       }
       
@@ -41,7 +42,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [router, supabase, pathname])
 
   return (
     <Context.Provider value={{ supabase }}>

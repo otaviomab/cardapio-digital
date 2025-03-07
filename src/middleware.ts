@@ -74,6 +74,7 @@ export async function middleware(request: NextRequest) {
 }
 
 // Ajustando o matcher para incluir apenas as rotas necessárias
+// Importante: Não incluir rotas de restaurante aqui para evitar redirecionamentos indevidos
 export const config = {
   matcher: ['/admin/:path*', '/debug/:path*'],
 } 

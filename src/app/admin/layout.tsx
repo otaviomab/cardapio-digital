@@ -119,7 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isMounted) {
       getUser()
     }
-  }, [supabase, isMounted, pathname, router])
+  }, [supabase, isMounted, pathname, router, isLoading])
 
   // Efeito adicional para garantir que o loading não fique preso
   useEffect(() => {

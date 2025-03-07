@@ -32,7 +32,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         router.push('/admin/login')
       }
       
-      // Se o usuário fez login, redireciona para o dashboard
+      // Se o usuário fez login, não fazemos nada aqui
+      // O redirecionamento é tratado na página de login para evitar conflitos
       if (event === 'SIGNED_IN') {
         console.log('Usuário logado, atualizando estado da aplicação')
         // Não redirecionamos aqui para evitar conflito com o redirecionamento na página de login

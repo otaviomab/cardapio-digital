@@ -1,0 +1,10 @@
+{
+  "/api/mongodb/route": "app/api/mongodb/route.js",
+  "/[slug]/page": "app/[slug]/page.js",
+  "/page": "app/page.js",
+  "/cart/page": "app/cart/page.js",
+  "/admin/login/page": "app/admin/login/page.js",
+  "/admin/menu/page": "app/admin/menu/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/admin/orders/page": "app/admin/orders/page.js"
+}

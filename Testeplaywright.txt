@@ -1,0 +1,15 @@
+1. Acesse: https://localhost:3000/admin/login/
+2. Insira Login e Senha:
+email: dev@otaviomarco.com.br
+senha: 1234567
+3. Abra clique em pedidos no menu superior, aguarde carregar, escolha um pedido aleatorio e clique em ver detalhes espere carregar e verifique se esta tudo certo.
+4. Clique em Cardapio no menu superior, veja se pagina vai abrir corretamente, Edite 1 produto, troque nome, preco, descricao, titulo e salve. Crie um produto novo escolha categoria e etc.
+5. Clique em configuracoes Mude Nome do Restaurante e a descricao. Depois salve e apos isso volte para o original e salve novamente. Faca o mesmo em todas as abas, endereco, horarios, entregas, tipo de estabelecimento, pagamentos e só.
+6. Clique em cardapio novamente no menu, clique em ver cardapio, isso carrregara nova pagina, faca 1 pedido como se fosse cliente, escolha produto aleatorio va ate o carrinho coloque endereco, CEP 13040108 numero da casa 85, o resto do endereco ira preencher sozinho. Escolha forma de pagamento aleatoria e faca pedido.
+7. Volte para pagina de admin e veja se ira chegar notificacao do pedido, se chegar, aceite o pedido. Se nao ocorrer nenhum erro encerre o teste.
+
+Em qualquer momento que ocorrer um erro ou algo nao funcionar de forma esperada volte no arquivo @Testeplaywright.txt e documente o erro.
+
+
+Seletor do botao editar produto: body > main > div > main > div > div > div > div.space-y-6 > div:nth-child(1) > div.divide-y.divide-gray-200 > div:nth-child(1) > div.flex.flex-1.items-start.justify-between > div.flex.flex-col.sm\:flex-row.items-center.gap-2 > button:nth-child(1)
+Seletor 

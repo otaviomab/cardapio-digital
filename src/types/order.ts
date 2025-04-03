@@ -15,8 +15,8 @@ export interface OrderStatusUpdate {
   message: string
 }
 
-export interface Order {
-  _id?: string
+// Interface base para operações de criação de pedidos
+export interface OrderBase {
   restaurantId: string
   customer: {
     name: string
@@ -35,10 +35,12 @@ export interface Order {
       firstHalf: {
         name: string
         additions?: Array<{name: string, price: number}>
+        category?: string
       }
       secondHalf: {
         name: string
         additions?: Array<{name: string, price: number}>
+        category?: string
       }
     }
     additions?: Array<{id?: string, name: string, price: number}>
@@ -83,6 +85,14 @@ export interface Order {
     change?: number
   }
   
-  createdAt: string
-  updatedAt: string
+  // Campos de data opcionais na criação
+  createdAt?: string | Date
+  updatedAt?: string | Date
+}
+
+// Interface completa para pedidos persistidos
+export interface Order extends OrderBase {
+  _id?: string
+  createdAt: string | Date
+  updatedAt: string | Date
 } 

@@ -17,7 +17,7 @@
 import { ObjectId } from 'mongodb'
 import clientPromise from './mongodb'
 import { Category, Product } from '@/types/restaurant'
-import { Order } from '@/types/order'
+import { Order, OrderBase } from '@/types/order'
 import { supabase } from '@/lib/supabase'
 import { emitToRestaurant } from './socket'
 import { connectToDatabase } from './mongodb'
@@ -363,14 +363,41 @@ export async function getOrder(id: string) {
   const client = await clientPromise
   const collection = client.db('cardapio_digital').collection('orders')
   
-  console.log('Buscando pedido com ID:', id)
+  console.log('[getOrder] Buscando pedido com ID:', id)
   
   try {
     const order = await collection.findOne({ _id: new ObjectId(id) })
     
     if (!order) {
-      console.log('Pedido não encontrado:', id)
+      console.log('[getOrder] Pedido não encontrado:', id)
       return null
+    }
+
+    // Log detalhado dos itens para debug
+    if (order.items && order.items.length > 0) {
+      console.log('[getOrder] Itens do pedido:')
+      order.items.forEach((item, index) => {
+        console.log(`[getOrder] Item ${index + 1}:`, {
+          nome: item.name,
+          categoria: item.category,
+          isHalfHalf: item.isHalfHalf,
+          halfHalfData: item.isHalfHalf ? item.halfHalf : null
+        })
+        
+        // Verifica se o item é meio a meio e se tem as categorias necessárias
+        if (item.isHalfHalf && item.halfHalf) {
+          console.log(`[getOrder] Detalhes do item meio a meio ${index + 1}:`, {
+            primeiraMetade: {
+              nome: item.halfHalf.firstHalf?.name,
+              categoria: item.halfHalf.firstHalf?.category
+            },
+            segundaMetade: {
+              nome: item.halfHalf.secondHalf?.name,
+              categoria: item.halfHalf.secondHalf?.category
+            }
+          })
+        }
+      })
     }
     
     // Normaliza o ID antes de retornar
@@ -380,20 +407,20 @@ export async function getOrder(id: string) {
       _id: order._id.toString() // Mantém _id como string para compatibilidade
     }
     
-    console.log('Pedido encontrado:', normalizedOrder)
+    console.log('[getOrder] Pedido encontrado e normalizado')
     return normalizedOrder
   } catch (error) {
-    console.error('Erro ao buscar pedido:', error)
+    console.error('[getOrder] Erro ao buscar pedido:', error)
     throw error
   }
 }
 
-export async function createOrder(order: Order) {
+export async function createOrder(order: OrderBase) {
   try {
     const { db } = await connectToDatabase()
     
     // Adiciona data de criação e garante que orderType esteja definido
-    const orderWithTimestamp = {
+    const orderWithTimestamp: Order = {
       ...order,
       // Garante que orderType esteja definido (compatibilidade com deliveryMethod)
       orderType: order.orderType || order.deliveryMethod || 'delivery',
@@ -404,7 +431,7 @@ export async function createOrder(order: Order) {
     const result = await db.collection('orders').insertOne(orderWithTimestamp)
     
     // Recupera o pedido completo com o ID gerado
-    const createdOrder = {
+    const createdOrder: Order = {
       ...orderWithTimestamp,
       _id: result.insertedId.toString()
     }

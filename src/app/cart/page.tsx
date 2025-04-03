@@ -302,27 +302,23 @@ export default function CartPage() {
 
       // Criar o objeto do pedido
       const orderItems = items.map(item => {
-        // Obter a categoria exata do produto sem modificação
-        const categoria = item.product.category;
-        
-        // Log para debug
-        console.log(`Item: ${item.product.name}, categoria original:`, categoria);
+        // Determina a categoria com base no produto
+        const categoria = item.product?.category || 'Não classificado';
         
         return {
-          productId: item.id,
-          name: item.halfHalf 
-            ? `${item.product.name} (Meio a Meio)` 
-            : item.product.name,
+          productId: item.product.id || item.product._id || '',
+          name: item.product.name,
           price: calculateItemPrice(item),
           quantity: item.quantity,
-          observations: item.observation || '',
-          // Categoria exata do produto
-          category: categoria,
+          observations: item.observation || '', 
+          category: categoria, 
+          
           // Informações de meia a meia
           isHalfHalf: !!item.halfHalf,
           halfHalf: item.halfHalf ? {
             firstHalf: {
               name: item.halfHalf.firstHalf.product.name,
+              category: item.halfHalf.firstHalf.product.category || (item.product.isPizza ? 'Pizza' : categoria),
               additions: item.halfHalf.firstHalf.selectedAdditions?.map(a => ({
                 name: a.name,
                 price: a.price
@@ -330,6 +326,7 @@ export default function CartPage() {
             },
             secondHalf: {
               name: item.halfHalf.secondHalf.product.name,
+              category: item.halfHalf.secondHalf.product.category || (item.product.isPizza ? 'Pizza' : categoria),
               additions: item.halfHalf.secondHalf.selectedAdditions?.map(a => ({
                 name: a.name,
                 price: a.price
@@ -337,6 +334,17 @@ export default function CartPage() {
             }
           } : null
         };
+      });
+      
+      // Adiciona logs específicos para depuração de itens meio a meio
+      orderItems.forEach((item, index) => {
+        if (item.isHalfHalf && item.halfHalf) {
+          console.log(`[DEPURAÇÃO] Item #${index + 1} meio a meio:`);
+          console.log(`Primeira metade - Nome: ${item.halfHalf.firstHalf.name}`);
+          console.log(`Primeira metade - Categoria: ${item.halfHalf.firstHalf.category}`);
+          console.log(`Segunda metade - Nome: ${item.halfHalf.secondHalf.name}`);
+          console.log(`Segunda metade - Categoria: ${item.halfHalf.secondHalf.category}`);
+        }
       });
       
       console.log('Items para enviar:', JSON.stringify(orderItems, null, 2));

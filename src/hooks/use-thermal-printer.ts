@@ -151,8 +151,29 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
       // Itens do pedido
       let items = orderData.items || [];
       
+      // Adicionar logs para depuração
+      console.log('[IMPRESSÃO] Estrutura completa do pedido:', JSON.stringify(orderData, null, 2));
+      console.log('[IMPRESSÃO] Itens do pedido antes do processamento:', JSON.stringify(items, null, 2));
+      
       // Simplificar o processamento e garantir que todos os itens tenham categoria
-      items = items.map(item => {
+      items = items.map((item: any) => {
+        // Logs específicos para itens meio a meio
+        if (item.isHalfHalf && item.halfHalf) {
+          console.log('[IMPRESSÃO] Item meio a meio encontrado:', item.name);
+          console.log('[IMPRESSÃO] Estrutura do item meio a meio:', JSON.stringify(item, null, 2));
+          console.log('[IMPRESSÃO] Categoria primeira metade:', item.halfHalf.firstHalf?.category);
+          console.log('[IMPRESSÃO] Categoria segunda metade:', item.halfHalf.secondHalf?.category);
+          
+          // Garantir que as metades tenham categorias
+          if (item.halfHalf.firstHalf && !item.halfHalf.firstHalf.category) {
+            item.halfHalf.firstHalf.category = item.category || 'Não classificado';
+          }
+          
+          if (item.halfHalf.secondHalf && !item.halfHalf.secondHalf.category) {
+            item.halfHalf.secondHalf.category = item.category || 'Não classificado';
+          }
+        }
+        
         // Se não tiver categoria, aplicar uma padrão
         if (!item.category) {
           return { ...item, category: 'Não classificado' };
@@ -167,52 +188,89 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
         itemsHtml += `
           <div class="item">
             <div class="bold">${item.quantity}x ${item.name}</div>
-            <div class="item-category">CATEGORIA: ${item.category || 'Não classificado'}</div>
+        `;
+        
+        // Se for meia a meia, mostrar categorias das metades
+        if (item.isHalfHalf && item.halfHalf) {
+          // Implementação melhorada para obter categorias das metades
+          let firstHalfCategory = 'Não classificado';
+          let secondHalfCategory = 'Não classificado';
+          
+          // Tentativa 1: Usar diretamente da estrutura halfHalf
+          if (item.halfHalf.firstHalf && item.halfHalf.firstHalf.category) {
+            firstHalfCategory = item.halfHalf.firstHalf.category;
+          }
+          
+          if (item.halfHalf.secondHalf && item.halfHalf.secondHalf.category) {
+            secondHalfCategory = item.halfHalf.secondHalf.category;
+          }
+          
+          // Tentativa 2: Se não encontrou categoria, tenta obter do item principal
+          if (firstHalfCategory === 'Não classificado' && item.category) {
+            firstHalfCategory = item.category;
+          }
+          
+          if (secondHalfCategory === 'Não classificado' && item.category) {
+            secondHalfCategory = item.category;
+          }
+          
+          // Registra as categorias que serão mostradas
+          console.log('[IMPRESSÃO] Categorias usadas na impressão:');
+          console.log(`Primeira metade: ${firstHalfCategory}`);
+          console.log(`Segunda metade: ${secondHalfCategory}`);
+          
+          // Adiciona ao HTML
+          itemsHtml += `<div class="item-category">CATEGORIA (1/2): ${firstHalfCategory}</div>`;
+          itemsHtml += `<div class="item-category">CATEGORIA (2/2): ${secondHalfCategory}</div>`;
+        } else {
+          // Se não for meia a meia, mostrar a categoria principal
+          itemsHtml += `<div class="item-category">CATEGORIA: ${item.category || 'Não classificado'}</div>`;
+        }
+        
+        itemsHtml += `
             <div>${formatCurrency(item.price * item.quantity)}</div>
         `;
         
         // Se for meia a meia
-        if (item.isHalfHalf || item.isHalfAndHalf || item.halfHalf) {
-          if (item.halfHalf) {
-            // Nova estrutura com halfHalf
-            itemsHtml += `<div>½ ${item.halfHalf.firstHalf.name}</div>`;
-            
-            // Adicionais da primeira metade
-            if (item.halfHalf.firstHalf.additions && item.halfHalf.firstHalf.additions.length > 0) {
-              for (const addition of item.halfHalf.firstHalf.additions) {
-                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
-              }
-            }
-            
-            itemsHtml += `<div>½ ${item.halfHalf.secondHalf.name}</div>`;
-            
-            // Adicionais da segunda metade
-            if (item.halfHalf.secondHalf.additions && item.halfHalf.secondHalf.additions.length > 0) {
-              for (const addition of item.halfHalf.secondHalf.additions) {
-                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
-              }
-            }
-          } else if (item.firstHalf && item.secondHalf) {
-            // Estrutura antiga com firstHalf e secondHalf diretamente no item
-            itemsHtml += `<div>½ ${item.firstHalf}</div>`;
-            
-            // Adicionais da primeira metade
-            if (item.firstHalfAdditions && item.firstHalfAdditions.length > 0) {
-              for (const addition of item.firstHalfAdditions) {
-                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
-              }
-            }
-            
-            itemsHtml += `<div>½ ${item.secondHalf}</div>`;
-            
-            // Adicionais da segunda metade
-            if (item.secondHalfAdditions && item.secondHalfAdditions.length > 0) {
-              for (const addition of item.secondHalfAdditions) {
-                itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
-              }
+        if (item.isHalfHalf && item.halfHalf) {
+          itemsHtml += `<div>½ ${item.halfHalf.firstHalf.name}</div>`;
+          
+          // Adicionais da primeira metade
+          if (item.halfHalf.firstHalf.additions && item.halfHalf.firstHalf.additions.length > 0) {
+            for (const addition of item.halfHalf.firstHalf.additions) {
+              itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
             }
           }
-        } 
+          
+          itemsHtml += `<div>½ ${item.halfHalf.secondHalf.name}</div>`;
+          
+          // Adicionais da segunda metade
+          if (item.halfHalf.secondHalf.additions && item.halfHalf.secondHalf.additions.length > 0) {
+            for (const addition of item.halfHalf.secondHalf.additions) {
+              itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+            }
+          }
+        } else if (item.firstHalf && item.secondHalf) {
+          // Estrutura antiga com firstHalf e secondHalf diretamente no item
+          itemsHtml += `<div>½ ${item.firstHalf}</div>`;
+          
+          // Adicionais da primeira metade
+          if (item.firstHalfAdditions && item.firstHalfAdditions.length > 0) {
+            for (const addition of item.firstHalfAdditions) {
+              itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+            }
+          }
+          
+          itemsHtml += `<div>½ ${item.secondHalf}</div>`;
+          
+          // Adicionais da segunda metade
+          if (item.secondHalfAdditions && item.secondHalfAdditions.length > 0) {
+            for (const addition of item.secondHalfAdditions) {
+              itemsHtml += `<div>&nbsp;&nbsp;+ ${addition.name}</div>`;
+            }
+          }
+        }
+        
         // Adicionais normais (para itens que não são meia a meia)
         else if (item.additions && item.additions.length > 0) {
           for (const addition of item.additions) {
@@ -251,6 +309,8 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
               width: 80mm;
               margin: 0 auto;
               padding: 5px;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .print-container {
               width: 80mm;
@@ -262,27 +322,11 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
             .center { text-align: center; }
             .bold { font-weight: bold; }
             .large { font-size: 14px; }
-            .categoria-produto {
-              font-weight: bold;
-              font-size: 12px;
-              padding: 3px 0;
-              border-top: 1px solid black;
-              border-bottom: 1px solid black;
-              margin: 2px 0;
-            }
             .item-category {
               font-weight: bold;
-              border-top: 1px solid black;
-              border-bottom: 1px solid black;
-              padding: 3px 0;
-              margin: 3px 0;
-            }
-            .category { 
-              font-size: 11px; 
-              margin: 2px 0; 
-              padding: 1px 0;
-              border-top: 1px dotted #ccc;
-              border-bottom: 1px dotted #ccc;
+              text-decoration: underline;
+              padding: 2px 0;
+              margin: 2px 0;
             }
             hr { border-top: 1px dashed #000; }
             .item { margin-bottom: 5px; }
@@ -337,6 +381,15 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
                 margin: 0;
                 padding: 0;
               }
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
+              body {
+                width: 100%;
+                margin: 0;
+                padding: 0;
+              }
             }
           </style>
         </head>
@@ -344,7 +397,8 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
           <div class="instructions">
             <h2>Impressão de Pedido</h2>
             <p>Clique no botão "Imprimir" abaixo para enviar o pedido para a impressora.</p>
-            <p>Certifique-se de selecionar a impressora térmica na caixa de diálogo de impressão.</p>
+            <p>Certifique-se de selecionar a impressora térmica na caixa de diálogo de impressão e <strong>desabilitar cabeçalhos e rodapés</strong>.</p>
+            <p><strong>Importante:</strong> Nas opções de impressão, selecione "Simplificado" ou "Modo rascunho" se disponível.</p>
           </div>
           
           <div class="print-container">
@@ -389,15 +443,44 @@ export function useThermalPrinter(): UseThermalPrinterReturn {
             <div class="center">Obrigado pela preferência!</div>
           </div>
           
-          <button class="print-button" onclick="window.print();">Imprimir</button>
+          <button class="print-button" onclick="printReceipt();">Imprimir</button>
           <button class="close-button" onclick="window.close();">Fechar</button>
           
           <script>
-            // Função para imprimir automaticamente após 1 segundo
-            setTimeout(function() {
-              // Não imprime automaticamente, aguarda o clique no botão
-              // window.print();
-            }, 1000);
+            function printReceipt() {
+              // Configurações para impressão
+              const mediaQueryList = window.matchMedia('print');
+              
+              // Configurar a página para impressão
+              const style = document.createElement('style');
+              style.textContent = '@page { size: 80mm auto; margin: 0; }';
+              document.head.appendChild(style);
+              
+              // Remover cabeçalhos e rodapés
+              const oldTitle = document.title;
+              document.title = "";
+              
+              window.print();
+              
+              // Restaurar título
+              document.title = oldTitle;
+              document.head.removeChild(style);
+            }
+            
+            // Função para configurar a impressão quando a página carrega
+            window.onload = function() {
+              // Configurar impressão
+              const mediaQueryList = window.matchMedia('print');
+              mediaQueryList.addListener(function(mql) {
+                if (mql.matches) {
+                  // Antes de imprimir
+                  document.body.classList.add('printing');
+                } else {
+                  // Depois de imprimir
+                  document.body.classList.remove('printing');
+                }
+              });
+            };
           </script>
         </body>
         </html>

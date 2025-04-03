@@ -27,73 +27,55 @@ export function ThermalPrintButton({
     try {
       // Verificar categorias antes da impressão
       if (order && order.items && Array.isArray(order.items)) {
-        // Verifica itens sem categoria
-        const itemsWithoutCategory = order.items.filter(item => !item.category);
-        
-        if (itemsWithoutCategory.length > 0 && order.restaurantId) {
-          console.log(`Encontrados ${itemsWithoutCategory.length} itens sem categoria. Tentando buscar...`);
-          
-          try {
-            // Busca produtos para tentar encontrar categorias
-            const response = await fetch(`/api/mongodb?action=getProducts&restaurantId=${order.restaurantId}`);
-            if (response.ok) {
-              const products = await response.json();
-              
-              if (products && Array.isArray(products)) {
-                // Atualiza os itens com as categorias encontradas
-                for (const item of order.items) {
-                  if (!item.category) {
-                    // Busca o produto correspondente
-                    const matchingProduct = products.find(p => 
-                      p._id === item.productId || 
-                      p.id === item.productId || 
-                      p.name === item.name
-                    );
-                    
-                    if (matchingProduct && matchingProduct.category) {
-                      console.log(`Categoria encontrada para impressão: ${item.name} -> ${matchingProduct.category}`);
-                      item.category = matchingProduct.category;
-                    } else if (matchingProduct && matchingProduct.categoryId) {
-                      // Se tem categoryId, vamos buscar a categoria
-                      try {
-                        const catResponse = await fetch(`/api/mongodb?action=getCategories&restaurantId=${order.restaurantId}`);
-                        if (catResponse.ok) {
-                          const categories = await catResponse.json();
-                          
-                          const matchingCategory = categories.find(c => 
-                            c._id === matchingProduct.categoryId || 
-                            c.id === matchingProduct.categoryId
-                          );
-                          
-                          if (matchingCategory) {
-                            console.log(`Categoria encontrada via ID: ${matchingCategory.name}`);
-                            item.category = matchingCategory.name;
-                          } else {
-                            item.category = 'Não categorizado';
-                          }
-                        }
-                      } catch(e) {
-                        console.error("Erro ao buscar categoria por ID:", e);
-                        item.category = 'Não categorizado';
-                      }
-                    } else {
-                      // Se não encontrar, cria uma categoria padrão
-                      console.log(`Não foi possível encontrar categoria para: ${item.name}`);
-                      item.category = 'Não categorizado';
-                    }
-                  }
-                }
+        // Processa itens meio a meio
+        for (const item of order.items) {
+          // Garante que itens meio a meio tenham categorias em ambas as partes
+          if (item.isHalfHalf && item.halfHalf) {
+            console.log('[IMPRESSÃO] Processando item meio a meio para impressão:', item.name);
+            
+            // Verifica se as categorias já existem
+            const firstHalfHasCategory = !!(item.halfHalf.firstHalf && item.halfHalf.firstHalf.category);
+            const secondHalfHasCategory = !!(item.halfHalf.secondHalf && item.halfHalf.secondHalf.category);
+            
+            console.log('[IMPRESSÃO] Status das categorias:', {
+              firstHalf: firstHalfHasCategory ? item.halfHalf.firstHalf.category : 'ausente',
+              secondHalf: secondHalfHasCategory ? item.halfHalf.secondHalf.category : 'ausente'
+            });
+            
+            // Cria objetos se não existirem
+            if (!item.halfHalf.firstHalf) item.halfHalf.firstHalf = {};
+            if (!item.halfHalf.secondHalf) item.halfHalf.secondHalf = {};
+            
+            // Se a categoria principal existe, usa ela como fallback
+            if (!firstHalfHasCategory) {
+              if (item.category) {
+                item.halfHalf.firstHalf.category = item.category;
+                console.log('[IMPRESSÃO] Usando categoria principal para primeira metade:', item.category);
+              } else {
+                // Se nem a categoria principal existe, usa "Lanches" como fallback para pizzas
+                item.halfHalf.firstHalf.category = 'Lanches';
+                console.log('[IMPRESSÃO] Usando categoria Lanches para primeira metade');
               }
             }
-          } catch (error) {
-            console.error('Erro ao buscar categorias para impressão:', error);
             
-            // Aplica categorias padrão para itens sem categoria
-            for (const item of itemsWithoutCategory) {
-              item.category = 'Não categorizado';
+            if (!secondHalfHasCategory) {
+              if (item.category) {
+                item.halfHalf.secondHalf.category = item.category;
+                console.log('[IMPRESSÃO] Usando categoria principal para segunda metade:', item.category);
+              } else {
+                // Se nem a categoria principal existe, usa "Lanches" como fallback para pizzas
+                item.halfHalf.secondHalf.category = 'Lanches';
+                console.log('[IMPRESSÃO] Usando categoria Lanches para segunda metade');
+              }
             }
+          } else if (!item.category) {
+            // Para itens normais sem categoria
+            item.category = 'Lanches';
           }
         }
+        
+        // Log do objeto final para debug
+        console.log('[IMPRESSÃO] Objeto final para impressão:', JSON.stringify(order, null, 2));
       }
 
       // Envia para impressão com categorias atualizadas

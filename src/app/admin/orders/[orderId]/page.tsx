@@ -506,27 +506,45 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
                         {item.quantity}x {item.name}
                       </p>
                       
-                      {/* Exibir a categoria do produto */}
-                      <CategoryBadge 
-                        category={item.category} 
-                        productName={item.name}
-                        restaurantId={order.restaurantId}
-                      />
+                      {/* Exibir categoria APENAS para itens que NÃO são Meia a Meia */}
+                      {!item.isHalfHalf && (
+                        <CategoryBadge 
+                          category={item.category} 
+                          productName={item.name}
+                          restaurantId={order.restaurantId}
+                        />
+                      )}
                       
-                      {/* Informações de Meia a Meia */}
+                      {/* Informações de Meia a Meia - Incluir categorias das metades */}
                       {item.isHalfHalf && item.halfHalf && (
                         <div className="mt-2 space-y-1">
+                          {/* Primeira Metade */}
                           <div className="flex items-center gap-1">
                             <div className="h-3 w-3 rounded-full bg-krato-500"></div>
-                            <p className="text-sm text-zinc-700">
-                              <span className="font-medium">Primeira metade:</span> {item.halfHalf.firstHalf.name}
-                            </p>
+                            <div>
+                              <p className="text-sm text-zinc-700">
+                                <span className="font-medium">Primeira metade:</span> {item.halfHalf.firstHalf.name}
+                              </p>
+                              <CategoryBadge 
+                                category={item.halfHalf.firstHalf.category} // Assumindo que a categoria da metade está aqui
+                                productName={item.halfHalf.firstHalf.name}
+                                restaurantId={order.restaurantId}
+                              />
+                            </div>
                           </div>
+                          {/* Segunda Metade */}
                           <div className="flex items-center gap-1">
                             <div className="h-3 w-3 rounded-full bg-krato-700"></div>
-                            <p className="text-sm text-zinc-700">
-                              <span className="font-medium">Segunda metade:</span> {item.halfHalf.secondHalf.name}
-                            </p>
+                            <div>
+                              <p className="text-sm text-zinc-700">
+                                <span className="font-medium">Segunda metade:</span> {item.halfHalf.secondHalf.name}
+                              </p>
+                              <CategoryBadge 
+                                category={item.halfHalf.secondHalf.category} // Assumindo que a categoria da metade está aqui
+                                productName={item.halfHalf.secondHalf.name}
+                                restaurantId={order.restaurantId}
+                              />
+                            </div>
                           </div>
                         </div>
                       )}

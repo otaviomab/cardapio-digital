@@ -146,22 +146,82 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
         // Debug - verificar se os itens têm categoria
         if (data.items && Array.isArray(data.items)) {
           console.log('Itens do pedido carregado:');
-          data.items.forEach((item, index) => {
-            // Adicione este log para verificar todas as propriedades do item
-            console.log(`Item ${index + 1} completo:`, JSON.stringify(item));
-            console.log(`Item ${index + 1}: ${item.name}, Categoria: ${item.category || 'não definida'}`);
-            console.log('Propriedades do item:', Object.keys(item));
+          const restaurantId = data.restaurantId;
+          
+          // Buscar produtos e categorias para garantir que temos informações completas
+          try {
+            const productsResponse = await fetch(`/api/mongodb?action=getProducts&restaurantId=${restaurantId}`);
+            const categoriesResponse = await fetch(`/api/mongodb?action=getCategories&restaurantId=${restaurantId}`);
             
-            // Verifica se a categoria existe, mas em outra propriedade
-            if (!item.category && item.categoryId) {
-              console.log(`Item tem categoryId mas não category: ${item.categoryId}`);
-              // Podemos tentar usar o categoryId para obter o nome da categoria
-              item.category = `Categoria ID: ${item.categoryId}`;
+            if (productsResponse.ok && categoriesResponse.ok) {
+              const products = await productsResponse.json();
+              const categories = await categoriesResponse.json();
+              
+              console.log(`Produtos encontrados: ${products.length}`);
+              console.log(`Categorias encontradas: ${categories.length}`);
+              
+              // Mapear categorias por ID para acesso rápido
+              const categoryMap = categories.reduce((map: any, cat: any) => {
+                const id = cat._id?.toString() || cat.id;
+                map[id] = cat;
+                return map;
+              }, {});
+              
+              // Enriquecer cada item com informações de categoria
+              data.items = data.items.map((item: any, index: number) => {
+                console.log(`Item ${index + 1} completo:`, JSON.stringify(item));
+                console.log(`Item ${index + 1}: ${item.name}, Categoria: ${item.category || 'não definida'}`);
+                console.log('Propriedades do item:', Object.keys(item));
+                
+                // Se o item já tem categoria, manter como está
+                if (item.category) return item;
+                
+                // Procurar produto correspondente
+                const matchingProduct = products.find((p: any) => 
+                  p.id === item.productId || 
+                  p._id?.toString() === item.productId || 
+                  p.name === item.name
+                );
+                
+                if (matchingProduct) {
+                  console.log(`Produto encontrado para ${item.name}: ${matchingProduct.name}`);
+                  
+                  // Se o produto tem categoria diretamente
+                  if (matchingProduct.category) {
+                    console.log(`Usando categoria do produto: ${matchingProduct.category}`);
+                    return { ...item, category: matchingProduct.category };
+                  }
+                  
+                  // Se o produto tem categoryId, buscar o nome da categoria
+                  if (matchingProduct.categoryId) {
+                    const categoryId = matchingProduct.categoryId;
+                    const category = categoryMap[categoryId];
+                    
+                    if (category) {
+                      console.log(`Usando nome da categoria do produto: ${category.name}`);
+                      return { ...item, category: category.name };
+                    }
+                  }
+                }
+                
+                console.log(`Não foi possível encontrar categoria para ${item.name}`);
+                return { ...item, category: "Sem categoria" };
+              });
             }
-            
-            if (!item.category && item.categoryName) {
-              console.log(`Item tem categoryName mas não category: ${item.categoryName}`);
-              item.category = item.categoryName;
+          } catch (error) {
+            console.error('Erro ao buscar produtos/categorias:', error);
+          }
+          
+          // Verificar itens de meio a meio também
+          data.items.forEach((item: any) => {
+            if (item.isHalfHalf && item.halfHalf) {
+              if (item.halfHalf.firstHalf && !item.halfHalf.firstHalf.category) {
+                item.halfHalf.firstHalf.category = item.category || "Sem categoria";
+              }
+              
+              if (item.halfHalf.secondHalf && !item.halfHalf.secondHalf.category) {
+                item.halfHalf.secondHalf.category = item.category || "Sem categoria";
+              }
             }
           });
         }

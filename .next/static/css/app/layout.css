@@ -701,6 +701,9 @@ video {
 .left-1\/2 {
   left: 50%;
 }
+.left-2 {
+  left: 0.5rem;
+}
 .left-3 {
   left: 0.75rem;
 }
@@ -770,6 +773,10 @@ video {
 .col-span-full {
   grid-column: 1 / -1;
 }
+.-mx-1 {
+  margin-left: -0.25rem;
+  margin-right: -0.25rem;
+}
 .-mx-2 {
   margin-left: -0.5rem;
   margin-right: -0.5rem;
@@ -789,6 +796,10 @@ video {
 .mx-auto {
   margin-left: auto;
   margin-right: auto;
+}
+.my-1 {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 .-mb-px {
   margin-bottom: -1px;
@@ -813,6 +824,9 @@ video {
 }
 .ml-3 {
   margin-left: 0.75rem;
+}
+.ml-auto {
+  margin-left: auto;
 }
 .mr-1 {
   margin-right: 0.25rem;
@@ -904,6 +918,9 @@ video {
 .h-3 {
   height: 0.75rem;
 }
+.h-3\.5 {
+  height: 0.875rem;
+}
 .h-32 {
   height: 8rem;
 }
@@ -952,6 +969,9 @@ video {
 .h-full {
   height: 100%;
 }
+.h-px {
+  height: 1px;
+}
 .h-screen {
   height: 100vh;
 }
@@ -960,6 +980,9 @@ video {
 }
 .max-h-\[90vh\] {
   max-height: 90vh;
+}
+.max-h-\[var\(--radix-dropdown-menu-content-available-height\)\] {
+  max-height: var(--radix-dropdown-menu-content-available-height);
 }
 .max-h-screen {
   max-height: 100vh;
@@ -990,6 +1013,9 @@ video {
 }
 .w-3 {
   width: 0.75rem;
+}
+.w-3\.5 {
+  width: 0.875rem;
 }
 .w-3\/4 {
   width: 75%;
@@ -1048,6 +1074,9 @@ video {
 .min-w-0 {
   min-width: 0px;
 }
+.min-w-\[8rem\] {
+  min-width: 8rem;
+}
 .min-w-fit {
   min-width: fit-content;
 }
@@ -1086,6 +1115,9 @@ video {
 }
 .border-collapse {
   border-collapse: collapse;
+}
+.origin-\[--radix-dropdown-menu-content-transform-origin\] {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
 }
 .origin-\[--radix-popover-content-transform-origin\] {
   transform-origin: var(--radix-popover-content-transform-origin);
@@ -1138,6 +1170,9 @@ video {
 }
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+.cursor-default {
+  cursor: default;
 }
 .cursor-not-allowed {
   cursor: not-allowed;
@@ -1657,6 +1692,9 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(24 24 27 / var(--tw-bg-opacity, 1));
 }
+.fill-current {
+  fill: currentColor;
+}
 .object-contain {
   object-fit: contain;
 }
@@ -1777,8 +1815,14 @@ video {
 .pl-3 {
   padding-left: 0.75rem;
 }
+.pl-8 {
+  padding-left: 2rem;
+}
 .pl-9 {
   padding-left: 2.25rem;
+}
+.pr-2 {
+  padding-right: 0.5rem;
 }
 .pr-4 {
   padding-right: 1rem;
@@ -1877,6 +1921,9 @@ video {
 }
 .tracking-tight {
   letter-spacing: -0.025em;
+}
+.tracking-widest {
+  letter-spacing: 0.1em;
 }
 .text-accent-foreground {
   color: hsl(var(--accent-foreground));
@@ -2610,8 +2657,20 @@ video {
 
 
 
+.focus\:bg-accent:focus {
+  background-color: hsl(var(--accent));
+}
+
+
+
 .focus\:bg-primary:focus {
   background-color: hsl(var(--primary));
+}
+
+
+
+.focus\:text-accent-foreground:focus {
+  color: hsl(var(--accent-foreground));
 }
 
 
@@ -2891,6 +2950,12 @@ video {
 
 
 
+.data-\[disabled\]\:pointer-events-none[data-disabled] {
+  pointer-events: none;
+}
+
+
+
 .data-\[state\=checked\]\:translate-x-4[data-state="checked"] {
   --tw-translate-x: 1rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
@@ -2939,6 +3004,12 @@ video {
 
 
 
+.data-\[state\=open\]\:bg-accent[data-state="open"] {
+  background-color: hsl(var(--accent));
+}
+
+
+
 .data-\[state\=open\]\:bg-zinc-100[data-state="open"] {
   --tw-bg-opacity: 1;
   background-color: rgb(244 244 245 / var(--tw-bg-opacity, 1));
@@ -2962,6 +3033,12 @@ video {
 .data-\[state\=open\]\:text-zinc-500[data-state="open"] {
   --tw-text-opacity: 1;
   color: rgb(113 113 122 / var(--tw-text-opacity, 1));
+}
+
+
+
+.data-\[disabled\]\:opacity-50[data-disabled] {
+  opacity: 0.5;
 }
 
 
@@ -3531,6 +3608,19 @@ video {
 
 
 
+.\[\&\>svg\]\:size-4>svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+
+
+.\[\&\>svg\]\:shrink-0>svg {
+  flex-shrink: 0;
+}
+
+
+
 .\[\&\>svg\]\:text-destructive>svg {
   color: hsl(var(--destructive));
 }
@@ -3551,5 +3641,24 @@ video {
 
 .\[\&_p\]\:leading-relaxed p {
   line-height: 1.625;
+}
+
+
+
+.\[\&_svg\]\:pointer-events-none svg {
+  pointer-events: none;
+}
+
+
+
+.\[\&_svg\]\:size-4 svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+
+
+.\[\&_svg\]\:shrink-0 svg {
+  flex-shrink: 0;
 }
 
